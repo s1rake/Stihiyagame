@@ -99,11 +99,6 @@
             cursor: pointer;
         }
 
-        .card.selected {
-            border: 3px solid gold;
-            box-shadow: 0 0 15px gold;
-        }
-
         .common { border-top: 5px solid #9ca3af; }
         .rare { border-top: 5px solid #3b82f6; }
         .epic { border-top: 5px solid #a855f7; }
@@ -252,6 +247,7 @@
                 <option value="wind">💨 Ветер</option>
             </select>
             <button id="startGameBtn">🎮 Начать игру</button>
+            <button id="clearDataBtn" style="margin-top: 10px; background: #ff4444;">🗑️ Очистить сохранения</button>
         </div>
     </div>
 
@@ -403,9 +399,10 @@
     }
 
     function openPack() {
+        if (!currentUser) return;
         if (currentUser.currency < 100) { 
             alert("Не хватает монет!"); 
-            return false; 
+            return; 
         }
         currentUser.currency -= 100;
         let newCards = [];
@@ -427,7 +424,6 @@
         }
         saveUserData();
         showPackAnimation(newCards, compensation);
-        return true;
     }
 
     function showPackAnimation(cards, compensation) {
@@ -459,21 +455,14 @@
     }
 
     function saveUserData() {
-        localStorage.setItem("elementsGame", JSON.stringify(currentUser));
+        if (currentUser) {
+            localStorage.setItem("elementsGame", JSON.stringify(currentUser));
+        }
     }
 
-    function loadUserData() {
-        const saved = localStorage.getItem("elementsGame");
-        if (saved) {
-            currentUser = JSON.parse(saved);
-            if (!currentUser.collection) currentUser.collection = [];
-            if (!currentUser.deck) currentUser.deck = [];
-            updateUI();
-            renderCollectionAndDeck();
-            document.getElementById("startScreen").classList.remove("active");
-            document.getElementById("mainScreen").classList.add("active");
-            document.getElementById("deckPanel").classList.add("active");
-        }
+    function clearSave() {
+        localStorage.removeItem("elementsGame");
+        location.reload();
     }
 
     function updateUI() {
@@ -511,6 +500,7 @@
     }
 
     window.addToDeck = (cardName) => {
+        if (!currentUser) return;
         let card = currentUser.collection.find(c => c.name === cardName);
         if (!card || card.count <= 0) {
             alert("Нет такой карты в коллекции!");
@@ -531,6 +521,7 @@
     };
 
     window.removeFromDeck = (cardName) => {
+        if (!currentUser) return;
         let idx = currentUser.deck.findIndex(c => c.name === cardName);
         if (idx === -1) return;
         let removed = currentUser.deck[idx];
@@ -547,6 +538,7 @@
     }
 
     function startBattle() {
+        if (!currentUser) return;
         if (!currentUser.deck.length) {
             alert("Сначала собери колоду (нажми на карты в коллекции)!");
             return;
@@ -649,8 +641,9 @@
         let trophies = playerWon ? 25 : -8;
         let coins = playerWon ? 100 : 0;
         
-        if (trophies + currentUser.trophies < 0) currentUser.trophies = 0;
-        else currentUser.trophies += trophies;
+        let newTrophies = currentUser.trophies + trophies;
+        if (newTrophies < 0) newTrophies = 0;
+        currentUser.trophies = newTrophies;
         currentUser.currency += coins;
         
         saveUserData();
@@ -672,18 +665,24 @@
             return;
         }
         
-        // Даём стартовые карты (8 уникальных)
+        // Даём стартовые карты (8 уникальных) - простой способ без циклов
         let starterCards = [];
-        let availableCards = [...cardsDB[element]];
+        let sourceCards = [...cardsDB[element]];
         
-        // Перемешиваем и берём первые 8 (уникальные по определению)
-        for (let i = availableCards.length - 1; i > 0; i--) {
+        // Перемешиваем
+        for (let i = sourceCards.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [availableCards[i], availableCards[j]] = [availableCards[j], availableCards[i]];
+            [sourceCards[i], sourceCards[j]] = [sourceCards[j], sourceCards[i]];
         }
         
-        for (let i = 0; i < Math.min(8, availableCards.length); i++) {
-            starterCards.push({ ...availableCards[i], count: 1 });
+        // Берём первые 8
+        for (let i = 0; i < Math.min(8, sourceCards.length); i++) {
+            starterCards.push({ 
+                name: sourceCards[i].name, 
+                rarity: sourceCards[i].rarity, 
+                damage: sourceCards[i].damage, 
+                count: 1 
+            });
         }
         
         currentUser = {
@@ -704,16 +703,10 @@
         document.getElementById("deckPanel").classList.add("active");
     }
 
-    function resetGame() {
-        if (confirm("Сбросить весь прогресс? Все карты и монеты будут удалены!")) {
-            localStorage.removeItem("elementsGame");
-            location.reload();
-        }
-    }
-
     // ========== НАВЕШИВАЕМ СОБЫТИЯ ==========
     document.getElementById("startGameBtn").onclick = newGame;
-    document.getElementById("resetBtn").onclick = resetGame;
+    document.getElementById("clearDataBtn").onclick = clearSave;
+    document.getElementById("resetBtn").onclick = clearSave;
     document.getElementById("saveDeckBtn").onclick = () => {
         if (currentUser && currentUser.deck.length === 0) alert("Колода не может быть пустой");
         else if (currentUser) saveUserData();
@@ -755,9 +748,6 @@
     };
     document.getElementById("botBattleBtn").onclick = () => { if (currentUser) startBattle(); };
     document.getElementById("fightRoundBtn").onclick = () => { if (currentBattle) executeRound(); };
-
-    // Загружаем сохранённые данные
-    loadUserData();
 </script>
 </body>
 </html>
