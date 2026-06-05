@@ -264,7 +264,7 @@
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
     const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-    // ========== КАРТЫ ==========
+    // КАРТЫ
     const cardsDB = {
         fire: [
             { name: "Имолец", rarity: "common", damage: 10 }, { name: "Пламенный клинок", rarity: "common", damage: 11 },
@@ -589,6 +589,8 @@
         let isPlayer1 = currentBattle.player1Id === currentUser.id;
         let selectedCards = currentSelected.map(i => currentSquad[i]);
         
+        console.log("Отправка готовности:", { isPlayer1, selectedCards });
+        
         let updateData = {};
         if (isPlayer1) {
             updateData.player1_selected = selectedCards;
@@ -598,7 +600,15 @@
             updateData.player2_ready = true;
         }
         
-        await sb.from("battles").update(updateData).eq("id", currentBattleId);
+        const { data, error } = await sb.from("battles").update(updateData).eq("id", currentBattleId).select();
+        
+        if (error) {
+            console.error("Ошибка отправки:", error);
+            alert("Ошибка: " + error.message);
+            return;
+        }
+        
+        console.log("Успешно отправлено:", data);
         
         document.getElementById("readyBtn").disabled = true;
         document.getElementById("readyBtn").innerHTML = "⏳ Ожидание соперника...";
@@ -609,9 +619,13 @@
         let { data } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
         if (!data) return;
         
+        console.log("Проверка готовности:", { p1: data.player1_ready, p2: data.player2_ready });
+        
         let bothReady = (data.player1_ready && data.player2_ready);
         
         if (bothReady && data.status === "active") {
+            console.log("Оба готовы! Раунд", data.round);
+            
             let p1Selected = data.player1_selected || [];
             let p2Selected = data.player2_selected || [];
             
@@ -688,7 +702,8 @@
                 player2_selected: null
             }).eq("id", currentBattleId);
             
-            // Обновляем UI для следующего раунда
+            console.log("Ход передан игроку:", nextTurn);
+            
             let { data: newData } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
             if (newData) {
                 startBattleFromData(newData);
@@ -710,7 +725,6 @@
                 document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
                 document.getElementById("roundNum").innerHTML = data.round;
                 
-                // Проверяем, нужно ли обновить UI для следующего хода
                 let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
                 if (currentTurnChanged || !currentBattle) {
                     startBattleFromData(data);
