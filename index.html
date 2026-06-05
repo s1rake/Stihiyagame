@@ -263,7 +263,7 @@
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
     const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-    // КАРТЫ (15 на стихию)
+    // КАРТЫ
     const cardsDB = {
         fire: [
             { name: "Имолец", rarity: "common", damage: 10 }, { name: "Пламенный клинок", rarity: "common", damage: 11 },
@@ -571,22 +571,20 @@
             document.getElementById("readyBtn").innerHTML = "✅ ГОТОВО";
             document.getElementById("waitingOpponentMsg").style.display = "none";
             document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты и нажми "ГОТОВО"!`;
-            showBattleScreen();
         } else if (isBothPlayersExist) {
             document.getElementById("readyBtn").style.display = "none";
             document.getElementById("waitingOpponentMsg").style.display = "block";
             let turnPlayer = (currentBattle.currentTurn === data.player1_id) ? data.player1_username : data.player2_username;
             document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Ожидание хода ${turnPlayer}...`;
             currentSquad = [];
-            showBattleScreen();
         } else {
             document.getElementById("readyBtn").style.display = "none";
             document.getElementById("waitingOpponentMsg").style.display = "block";
             document.getElementById("battleLog").innerHTML = `Ожидание подключения второго игрока...`;
             currentSquad = [];
-            showBattleScreen();
         }
         
+        showBattleScreen();
         startBattleInterval();
     }
 
@@ -623,6 +621,14 @@
         document.getElementById("readyBtn").disabled = true;
         document.getElementById("readyBtn").innerHTML = "⏳ Ожидание соперника...";
         document.getElementById("battleLog").innerHTML = `Ожидание выбора карт от соперника...`;
+        
+        // Если это первый игрок и он нажал готово, передаём ход второму
+        if (isPlayer1 && data[0]?.player1_ready && !data[0]?.player2_ready) {
+            await sb.from("battles").update({
+                current_turn: currentBattle.player2Id
+            }).eq("id", currentBattleId);
+            console.log("Ход передан игроку 2");
+        }
     }
 
     async function checkBothReadyAndResolve() {
@@ -701,11 +707,9 @@
                 return;
             }
             
-            // ПЕРЕДАЁМ ХОД ДРУГОМУ ИГРОКУ
-            let nextTurn = (data.current_turn === data.player1_id) ? data.player2_id : data.player1_id;
-            
+            // Передаём ход первому игроку для следующего раунда
             await sb.from("battles").update({
-                current_turn: nextTurn,
+                current_turn: data.player1_id,
                 round: data.round + 1,
                 player1_ready: false,
                 player2_ready: false,
@@ -713,7 +717,7 @@
                 player2_selected: null
             }).eq("id", currentBattleId);
             
-            console.log("Ход передан игроку:", nextTurn);
+            console.log("Ход передан игроку 1 для раунда", data.round + 1);
             
             let { data: newData } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
             if (newData) {
@@ -738,8 +742,10 @@
             document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
             document.getElementById("roundNum").innerHTML = data.round;
             
+            // Если ход поменялся или бой не инициализирован, обновляем UI
             let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
-            if (currentTurnChanged || !currentBattle) {
+            let roundChanged = currentBattle && currentBattle.round !== data.round;
+            if (currentTurnChanged || roundChanged || !currentBattle) {
                 startBattleFromData(data);
             }
             
@@ -795,7 +801,7 @@
         `).join('');
     };
 
-    // ===== БОЙ С БОТОМ (упрощённо) =====
+    // ===== БОЙ С БОТОМ =====
     async function startBotBattle() {
         if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт в колоду!"); return; }
         currentSquad = getRandomSquad();
