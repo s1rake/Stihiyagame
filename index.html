@@ -723,42 +723,49 @@
         }
     }
 
-    function startBattleInterval() {
-        if (battleInterval) clearInterval(battleInterval);
-        battleInterval = setInterval(async () => {
-            if (!currentBattleId) return;
-            let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-            if (error || !data) return;
-            
-            if (data.status === "finished") {
-                clearInterval(battleInterval);
-                return;
-            }
-            
-            let isPlayer1 = data.player1_id === currentUser.id;
-            document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
-            document.getElementById("roundNum").innerHTML = data.round;
-            
-            // Если появились выбранные карты противника — показываем их
-            let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
-            if (opponentSelected && opponentSelected.length > 0 && data.current_turn !== currentUser.id) {
-                document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
-                showOpponentCards(opponentSelected);
-            } else if (data.current_turn === currentUser.id) {
-                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
-            }
-            
-            let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
-            let roundChanged = currentBattle && currentBattle.round !== data.round;
-            if (currentTurnChanged || roundChanged || !currentBattle) {
-                startBattleFromData(data);
-            }
-            
-            await checkBothReadyAndResolve();
-        }, 1000);
-    }
-
+   function startBattleInterval() {
+    if (battleInterval) clearInterval(battleInterval);
+    battleInterval = setInterval(async () => {
+        if (!currentBattleId) return;
+        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+        if (error || !data) return;
+        
+        if (data.status === "finished") {
+            clearInterval(battleInterval);
+            return;
+        }
+        
+        let isPlayer1 = data.player1_id === currentUser.id;
+        document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
+        document.getElementById("roundNum").innerHTML = data.round;
+        
+        // ===== ВАЖНО: показываем карты противника, если он их уже выбрал =====
+        let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
+        let isMyTurn = (data.current_turn === currentUser.id);
+        
+        if (opponentSelected && opponentSelected.length > 0 && !isMyTurn) {
+            // Противник уже выбрал карты и сейчас мой ход — показываем их
+            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
+            showOpponentCards(opponentSelected);
+        } else if (!isMyTurn && !opponentSelected) {
+            // Противник ещё не выбрал
+            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание выбора)";
+            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+        } else if (isMyTurn) {
+            // Мой ход — карты противника скрыты (ещё не выбраны)
+            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
+            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+        }
+        
+        let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
+        let roundChanged = currentBattle && currentBattle.round !== data.round;
+        if (currentTurnChanged || roundChanged || !currentBattle) {
+            startBattleFromData(data);
+        }
+        
+        await checkBothReadyAndResolve();
+    }, 1000);
+}
     function showBattleScreen() {
         document.getElementById("battlePanel").classList.add("active");
         document.getElementById("lobbyPanel").classList.remove("active");
