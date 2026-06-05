@@ -526,10 +526,19 @@ function getRandomCardByElement(element) {
         }, 1000);
     }
 
-    function startBattleFromData(data) {
-        currentBattleId = data.id;
-        let isPlayer1 = data.player1_id === currentUser.id;
-        
+   function startBattleFromData(data) {
+    currentBattleId = data.id;
+    let isPlayer1 = data.player1_id === currentUser.id;
+    
+    // Обновляем отряды случайными картами из колоды
+    let freshSquad1 = getRandomSquad();
+    let freshSquad2 = getRandomSquad();
+    
+    // Сохраняем новые отряды в БД
+    await sb.from("battles").update({
+        player1_squad: freshSquad1,
+        player2_squad: freshSquad2
+    }).eq("id", currentBattleId);
         currentBattle = {
             isBot: false, battleId: data.id,
             player1Id: data.player1_id, player2Id: data.player2_id,
@@ -577,9 +586,22 @@ function getRandomCardByElement(element) {
             document.getElementById("battleLog").innerHTML = `Ожидание подключения второго игрока...`;
             currentSquad = [];
         }
-        
         showBattleScreen();
         startBattleInterval();
+
+       let newSquad1 = getRandomSquad();
+let newSquad2 = getRandomSquad();
+
+await sb.from("battles").update({
+    player1_squad: newSquad1,
+    player2_squad: newSquad2,
+    current_turn: data.player1_id,
+    round: data.round + 1,
+    player1_ready: false,
+    player2_ready: false,
+    player1_selected: null,
+    player2_selected: null
+}).eq("id", currentBattleId);
     }
 
     function showOpponentCards(cards) {
@@ -725,6 +747,14 @@ function getRandomCardByElement(element) {
         }
     }
 
+function refreshPlayerSquad(isPlayer1) {
+    if (isPlayer1) {
+        currentBattle.player1Squad = getRandomSquad();
+    } else {
+        currentBattle.player2Squad = getRandomSquad();
+    }
+}
+    
 // В функции startBattleInterval добавим проверку на появление выбранных карт противника
 function startBattleInterval() {
     if (battleInterval) clearInterval(battleInterval);
