@@ -786,8 +786,19 @@ async function updateBattle() {
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
         showMyCards();
     }
-    // ===== СЛУЧАЙ 3: Защитник выбирает защиту (атакующий уже выбрал) =====
-    else if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
+   // ===== СЛУЧАЙ 3: Защитник выбирает защиту =====
+else if (isMyTurn) {
+    // Проверяем, выбрал ли атакующий карты
+    let attackerHasSelected = (data.player1_selected && data.player1_selected.length === 4) || (data.player2_selected && data.player2_selected.length === 4);
+    let iHaveNotSelected = (isPlayer1 && !data.player1_selected) || (!isPlayer1 && !data.player2_selected);
+    
+    console.log("Проверка защитника:");
+    console.log("attackerHasSelected:", attackerHasSelected);
+    console.log("iHaveNotSelected:", iHaveNotSelected);
+    console.log("data.player1_selected:", data.player1_selected);
+    console.log("data.player2_selected:", data.player2_selected);
+    
+    if (attackerHasSelected && iHaveNotSelected) {
         console.log("Режим: ЗАЩИТНИК выбирает защиту");
         
         let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
@@ -807,13 +818,17 @@ async function updateBattle() {
             currentSelected = [];
             console.log("Загружены карты защитника:", currentSquad);
         }
+        
         document.getElementById("readyBtn").style.display = "block";
         document.getElementById("readyBtn").disabled = false;
         document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
         document.getElementById("waitingOpponentMsg").style.display = "none";
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
         showMyCards();
+    } else {
+        console.log("Защитник: условия не выполнены");
     }
+}
     // ===== СЛУЧАЙ 4: Ожидание =====
     else {
         console.log("Режим: ОЖИДАНИЕ");
