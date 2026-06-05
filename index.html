@@ -741,46 +741,57 @@
         }
     }
 
-    function startBattleInterval() {
-        if (battleInterval) clearInterval(battleInterval);
-        battleInterval = setInterval(async () => {
-            if (!currentBattleId) return;
-            let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-            if (error || !data) return;
+ function startBattleInterval() {
+    if (battleInterval) clearInterval(battleInterval);
+    battleInterval = setInterval(async () => {
+        if (!currentBattleId) return;
+        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+        if (error || !data) return;
+        
+        if (data.status === "finished") {
+            clearInterval(battleInterval);
+            return;
+        }
+        
+        let isPlayer1 = data.player1_id === currentUser.id;
+        let isMyTurn = (data.current_turn === currentUser.id);
+        
+        // Обновляем счёт и раунд
+        document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
+        document.getElementById("roundNum").innerHTML = data.round;
+        
+        // ПОКАЗЫВАЕМ КАРТЫ ПРОТИВНИКА, ЕСЛИ ОН ИХ УЖЕ ВЫБРАЛ
+        let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
+        
+        // ВАЖНО: показываем карты противника, если они есть, и НЕ перерисовываем их впустую
+        if (opponentSelected && opponentSelected.length > 0) {
+            // Проверяем, не показываем ли мы уже эти карты
+            let currentOpponentHtml = document.getElementById("opponentCardsField").innerHTML;
+            let shouldUpdate = !currentOpponentHtml.includes(opponentSelected[0]?.name || "");
             
-            if (data.status === "finished") {
-                clearInterval(battleInterval);
-                return;
-            }
-            
-            let isPlayer1 = data.player1_id === currentUser.id;
-            let isMyTurn = (data.current_turn === currentUser.id);
-            
-            document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
-            document.getElementById("roundNum").innerHTML = data.round;
-            
-            let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
-            
-            if (opponentSelected && opponentSelected.length > 0 && !isMyTurn) {
+            if (shouldUpdate) {
                 document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                 showOpponentCards(opponentSelected);
-            } else if (!isMyTurn) {
-                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
-                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
-            } else if (isMyTurn) {
-                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
             }
-            
-            let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
-            let roundChanged = currentBattle && currentBattle.round !== data.round;
-            if (currentTurnChanged || roundChanged || !currentBattle) {
-                startBattleFromData(data);
-            }
-            
-            await checkBothReadyAndResolve();
-        }, 1000);
-    }
+        } else if (!isMyTurn && !opponentSelected) {
+            // Только если нет карт и не мой ход
+            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
+            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+        } else if (isMyTurn && !opponentSelected) {
+            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
+            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+        }
+        
+        // Если ход поменялся или раунд — обновляем UI
+        let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
+        let roundChanged = currentBattle && currentBattle.round !== data.round;
+        if (currentTurnChanged || roundChanged || !currentBattle) {
+            startBattleFromData(data);
+        }
+        
+        await checkBothReadyAndResolve();
+    }, 1000);
+}
 
     function showBattleScreen() {
         document.getElementById("battlePanel").classList.add("active");
