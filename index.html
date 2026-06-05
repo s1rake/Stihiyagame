@@ -782,36 +782,39 @@ async function updateBattle() {
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
         showMyCards();
     }
-    // ===== СЛУЧАЙ 3: Защитник выбирает защиту =====
-    else if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
-        console.log("Режим: ЗАЩИТНИК выбирает защиту");
-        
-        let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
-        let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
-        let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
-        
-        console.log("Карты атакующего:", attackerCards);
-        
-        if (attackerCards && attackerCards.length === 4) {
-            showOpponentCards(attackerCards);
-            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
-        }
-        
-        if (currentSquad.length === 0 && mySquad && mySquad.length >= 4 && !window.cardsLoaded) {
-            window.cardsLoaded = true;
-            currentSquad = [...mySquad];
-            currentSelected = [];
-            console.log("Загружены карты защитника:", currentSquad);
-        }
-        
-        // ВСЕГДА ПОКАЗЫВАЕМ КНОПКУ И КАРТЫ
-        showMyCards();
-        document.getElementById("readyBtn").style.display = "block";
-        document.getElementById("readyBtn").disabled = false;
-        document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
-        document.getElementById("waitingOpponentMsg").style.display = "none";
-        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
+// ===== СЛУЧАЙ 3: Защитник выбирает защиту =====
+else if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
+    console.log("Режим: ЗАЩИТНИК выбирает защиту");
+    
+    let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
+    let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
+    let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+    
+    console.log("Карты атакующего:", attackerCards);
+    console.log("Мои карты для защиты:", mySquad);
+    console.log("currentSquad.length до загрузки:", currentSquad.length);
+    
+    if (attackerCards && attackerCards.length === 4) {
+        showOpponentCards(attackerCards);
+        document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
     }
+    
+    // ВСЕГДА загружаем карты защитника заново при каждом входе в этот блок
+    if (mySquad && mySquad.length >= 4) {
+        currentSquad = [...mySquad];
+        currentSelected = [];
+        window.cardsLoaded = true;
+        console.log("Загружены карты защитника:", currentSquad);
+    }
+    
+    // ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ КАРТЫ И КНОПКУ
+    showMyCards();
+    document.getElementById("readyBtn").style.display = "block";
+    document.getElementById("readyBtn").disabled = false;
+    document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
+    document.getElementById("waitingOpponentMsg").style.display = "none";
+    document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
+}
     // ===== СЛУЧАЙ 4: Ожидание =====
     else {
         console.log("Режим: ОЖИДАНИЕ");
