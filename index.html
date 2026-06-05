@@ -360,10 +360,10 @@
 </div>
 
 <script>
-    // ========== SUPABASE ==========
+    // ========== SUPABASE (без конфликта имён) ==========
     const SUPABASE_URL = "https://cpfhtzhmwblkkhvyqiyi.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // ========== БАЗА КАРТ ==========
     const cardsDB = {
@@ -449,7 +449,7 @@
 
     async function saveUserToSupabase() {
         if (!currentUser) return;
-        await supabase.from("users").upsert({
+        await supabaseClient.from("users").upsert({
             id: currentUser.id,
             username: currentUser.username,
             password_hash: currentUser.password_hash,
@@ -462,7 +462,7 @@
     }
 
     async function loadUserFromSupabase(userId) {
-        let { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+        let { data, error } = await supabaseClient.from("users").select("*").eq("id", userId).single();
         if (data) {
             currentUser = data;
             if (!currentUser.collection) currentUser.collection = [];
@@ -485,7 +485,7 @@
     function loadSession() {
         const session = localStorage.getItem("session");
         if (session) {
-            const { userId, username, password_hash } = JSON.parse(session);
+            const { userId } = JSON.parse(session);
             loadUserFromSupabase(userId);
         }
     }
@@ -507,11 +507,9 @@
             return;
         }
         
-        // Хеш пароля (простой, для демо)
         const password_hash = btoa(password);
         
-        // Проверка существования
-        const { data: existing } = await supabase.from("users").select("id").eq("username", username);
+        const { data: existing } = await supabaseClient.from("users").select("id").eq("username", username);
         if (existing && existing.length > 0) {
             alert("Имя уже занято!");
             return;
@@ -520,7 +518,7 @@
         const starterCards = getStarterCards(element);
         const starterDeck = [...starterCards];
         
-        const { data, error } = await supabase.from("users").insert({
+        const { data, error } = await supabaseClient.from("users").insert({
             username: username,
             password_hash: password_hash,
             element: element,
@@ -549,7 +547,7 @@
         const password = document.getElementById("loginPassword").value;
         const password_hash = btoa(password);
         
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from("users")
             .select("*")
             .eq("username", username)
