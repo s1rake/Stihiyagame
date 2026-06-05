@@ -231,6 +231,27 @@
             border: none;
             font-size: 16px;
         }
+
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .pack {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 24px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .pack:hover { transform: scale(1.02); background: rgba(0, 0, 0, 0.6); }
+        .pack.fire { border: 2px solid #ff4444; }
+        .pack.water { border: 2px solid #4488ff; }
+        .pack.earth { border: 2px solid #44ff44; }
+        .pack.wind { border: 2px solid #ffaa44; }
     </style>
 </head>
 <body>
@@ -281,15 +302,19 @@
                 <div class="deck-area">
                     <h3>⚔️ Ваша колода (уникальные карты, ≤12) <span id="deckCount">0</span>/12</h3>
                     <div id="deckGrid" class="cards-grid"></div>
-                    <button id="saveDeckBtn">💾 Сохранить колоду</button>
                 </div>
             </div>
         </div>
 
         <!-- МАГАЗИН -->
         <div id="shopPanel" class="screen">
-            <h3>🃏 Магазин паков (100💰 = 3 карты твоей стихии)</h3>
-            <div class="cards-grid" id="shopPacks"></div>
+            <h3>🃏 Магазин паков (100💰 = 3 карты)</h3>
+            <div class="shop-grid">
+                <div class="pack fire" onclick="buyPack('fire')">🔥 Пак Огня<br>100💰<br>3 карты огня</div>
+                <div class="pack water" onclick="buyPack('water')">💧 Пак Воды<br>100💰<br>3 карты воды</div>
+                <div class="pack earth" onclick="buyPack('earth')">🌍 Пак Земли<br>100💰<br>3 карты земли</div>
+                <div class="pack wind" onclick="buyPack('wind')">💨 Пак Ветра<br>100💰<br>3 карты ветра</div>
+            </div>
         </div>
 
         <!-- ЛИГА -->
@@ -310,9 +335,9 @@
                     <div id="opponentCardsField" style="min-height: 160px; display: flex; flex-wrap: wrap; justify-content: center;"></div>
                 </div>
                 <div class="arena">
-                    <div style="text-align:center">🃏 ВАШ ОТРЯД (выбери 6 карт)</div>
+                    <div style="text-align:center">🃏 ВАШ ОТРЯД (6 случайных карт из колоды)</div>
                     <div id="playerCardsField" style="min-height: 160px; display: flex; flex-wrap: wrap; justify-content: center;"></div>
-                    <button id="fightRoundBtn" style="margin-top: 16px;">⚔️ АТАКОВАТЬ</button>
+                    <button id="fightRoundBtn" style="margin-top: 16px;">⚔️ СЛЕДУЮЩИЙ РАУНД</button>
                 </div>
             </div>
             <div class="battle-log" id="battleLog"></div>
@@ -398,7 +423,7 @@
         return { ...filtered[Math.floor(Math.random() * filtered.length)], rarity };
     }
 
-    function openPack() {
+    function buyPack(element) {
         if (!currentUser) return;
         if (currentUser.currency < 100) { 
             alert("Не хватает монет!"); 
@@ -407,7 +432,7 @@
         currentUser.currency -= 100;
         let newCards = [];
         for (let i = 0; i < 3; i++) {
-            newCards.push(getRandomCardByElement(currentUser.element));
+            newCards.push(getRandomCardByElement(element));
         }
         let compensation = 0;
         for (let card of newCards) {
@@ -532,6 +557,16 @@
         saveUserData();
     };
 
+    function getRandomSquadFromDeck() {
+        if (!currentUser.deck.length) return [];
+        let shuffled = [...currentUser.deck];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled.slice(0, 6);
+    }
+
     function computeDamage(attacker, attackerElem, defenderElem) {
         let mult = elementBonus[attackerElem][defenderElem] || 1.0;
         return Math.floor(attacker.damage * mult);
@@ -544,12 +579,9 @@
             return;
         }
         
-        let squad = prompt(`Выбери 6 карт из колоды (введи названия через запятую)\nДоступны: ${currentUser.deck.map(c => c.name).join(", ")}`);
-        if (!squad) return;
-        let chosenNames = squad.split(",").map(s => s.trim());
-        let playerSquad = currentUser.deck.filter(c => chosenNames.includes(c.name));
-        if (playerSquad.length !== 6) {
-            alert("Выбрано не 6 уникальных карт");
+        let playerSquad = getRandomSquadFromDeck();
+        if (playerSquad.length < 6) {
+            alert("В колоде меньше 6 карт! Добавь ещё карт.");
             return;
         }
 
@@ -580,8 +612,12 @@
         document.getElementById("battleOpponentName").innerHTML = `🤖 Бот (${elemIcon})`;
         document.getElementById("roundNum").innerHTML = "1";
         document.getElementById("scoreDisplay").innerHTML = "0:0";
-        document.getElementById("battleLog").innerHTML = "⚔️ Нажми АТАКОВАТЬ";
+        document.getElementById("battleLog").innerHTML = "⚔️ Нажми СЛЕДУЮЩИЙ РАУНД";
         
+        updateBattleDisplay();
+    }
+
+    function updateBattleDisplay() {
         const playerField = document.getElementById("playerCardsField");
         playerField.innerHTML = currentBattle.playerSquad.map(c => `<div class="card-slot ${c.rarity}"><b>${c.name}</b><br>⚔️${c.damage}</div>`).join('');
         
@@ -622,17 +658,9 @@
         } else {
             currentBattle.round++;
             document.getElementById("roundNum").innerHTML = currentBattle.round;
-            alert(`Раунд ${currentBattle.round}. Выбери новых 6 карт`);
-            let squad = prompt(`Новый отряд: ${currentUser.deck.map(c => c.name).join(", ")}`);
-            if (squad) {
-                let chosen = squad.split(",").map(s => s.trim());
-                let newSquad = currentUser.deck.filter(c => chosen.includes(c.name));
-                if (newSquad.length === 6) {
-                    currentBattle.playerSquad = newSquad;
-                    const playerField = document.getElementById("playerCardsField");
-                    playerField.innerHTML = currentBattle.playerSquad.map(c => `<div class="card-slot ${c.rarity}"><b>${c.name}</b><br>⚔️${c.damage}</div>`).join('');
-                }
-            }
+            currentBattle.playerSquad = getRandomSquadFromDeck();
+            updateBattleDisplay();
+            alert(`Раунд ${currentBattle.round}! Новый случайный отряд из колоды.`);
         }
     }
 
@@ -665,17 +693,14 @@
             return;
         }
         
-        // Даём стартовые карты (8 уникальных) - простой способ без циклов
         let starterCards = [];
         let sourceCards = [...cardsDB[element]];
         
-        // Перемешиваем
         for (let i = sourceCards.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [sourceCards[i], sourceCards[j]] = [sourceCards[j], sourceCards[i]];
         }
         
-        // Берём первые 8
         for (let i = 0; i < Math.min(8, sourceCards.length); i++) {
             starterCards.push({ 
                 name: sourceCards[i].name, 
@@ -707,10 +732,6 @@
     document.getElementById("startGameBtn").onclick = newGame;
     document.getElementById("clearDataBtn").onclick = clearSave;
     document.getElementById("resetBtn").onclick = clearSave;
-    document.getElementById("saveDeckBtn").onclick = () => {
-        if (currentUser && currentUser.deck.length === 0) alert("Колода не может быть пустой");
-        else if (currentUser) saveUserData();
-    };
     document.getElementById("toDeckBtn").onclick = () => {
         if (!currentUser) return;
         document.getElementById("deckPanel").classList.add("active");
@@ -725,8 +746,6 @@
         document.getElementById("deckPanel").classList.remove("active");
         document.getElementById("leaguePanel").classList.remove("active");
         document.getElementById("battlePanel").classList.remove("active");
-        const elemIcon = currentUser.element === "fire" ? "🔥" : currentUser.element === "water" ? "💧" : currentUser.element === "earth" ? "🌍" : "💨";
-        document.getElementById("shopPacks").innerHTML = `<div class="card" onclick="openPack()">🎁 Пак твоей стихии (${elemIcon})<br>100💰<br>3 карты</div>`;
     };
     document.getElementById("leagueBtn").onclick = () => {
         if (!currentUser) return;
