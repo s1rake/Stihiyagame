@@ -528,6 +528,7 @@
             id: currentUser.id,
             username: currentUser.username,
             password_hash: currentUser.password_hash,
+            element: currentUser.element,
             currency: currentUser.currency || 0,
             trophies: currentUser.trophies || 0,
             collection: currentUser.collection || [],
@@ -795,43 +796,43 @@
         showBattleScreen();
     }
 
- async function submitReady() {
-    if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
-    
-    let isPlayer1 = currentBattle.player1Id === currentUser.id;
-    let isMyTurn = (currentBattle.currentTurn === currentUser.id);
-    let updateData = {};
-    
-    if (isMyTurn) {
-        // АТАКУЮЩИЙ - сохраняем выбранные карты и ПЕРЕДАЁМ ХОД ЗАЩИТНИКУ
-        if (isPlayer1) {
-            updateData.player1_selected = currentSelected;
-            updateData.current_turn = currentBattle.player2Id;
+    async function submitReady() {
+        if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
+        
+        let isPlayer1 = currentBattle.player1Id === currentUser.id;
+        let isMyTurn = (currentBattle.currentTurn === currentUser.id);
+        let updateData = {};
+        
+        if (isMyTurn) {
+            // АТАКУЮЩИЙ - сохраняем выбранные карты и ПЕРЕДАЁМ ХОД ЗАЩИТНИКУ
+            if (isPlayer1) {
+                updateData.player1_selected = currentSelected;
+                updateData.current_turn = currentBattle.player2Id;
+            } else {
+                updateData.player2_selected = currentSelected;
+                updateData.current_turn = currentBattle.player1Id;
+            }
+            document.getElementById("battleLog").innerHTML = `Ожидание выбора карт защиты от соперника...`;
         } else {
-            updateData.player2_selected = currentSelected;
-            updateData.current_turn = currentBattle.player1Id;
+            // ЗАЩИТНИК - сохраняем выбранные карты и ставим оба ready=true, НО НЕ МЕНЯЕМ ХОД
+            if (isPlayer1) {
+                updateData.player2_selected = currentSelected;
+                updateData.player1_ready = true;
+                updateData.player2_ready = true;
+            } else {
+                updateData.player1_selected = currentSelected;
+                updateData.player1_ready = true;
+                updateData.player2_ready = true;
+            }
+            document.getElementById("battleLog").innerHTML = `Ожидание расчёта раунда...`;
         }
-        document.getElementById("battleLog").innerHTML = `Ожидание выбора карт защиты от соперника...`;
-    } else {
-        // ЗАЩИТНИК - сохраняем выбранные карты и ставим оба ready=true, НО НЕ МЕНЯЕМ ХОД
-        if (isPlayer1) {
-            updateData.player2_selected = currentSelected;
-            updateData.player1_ready = true;
-            updateData.player2_ready = true;
-        } else {
-            updateData.player1_selected = currentSelected;
-            updateData.player1_ready = true;
-            updateData.player2_ready = true;
-        }
-        document.getElementById("battleLog").innerHTML = `Ожидание расчёта раунда...`;
+        
+        const { error } = await sb.from("battles").update(updateData).eq("id", currentBattleId);
+        if (error) { alert("Ошибка: " + error.message); return; }
+        
+        document.getElementById("readyBtn").disabled = true;
+        document.getElementById("readyBtn").innerHTML = "⏳ Ожидание...";
     }
-    
-    const { error } = await sb.from("battles").update(updateData).eq("id", currentBattleId);
-    if (error) { alert("Ошибка: " + error.message); return; }
-    
-    document.getElementById("readyBtn").disabled = true;
-    document.getElementById("readyBtn").innerHTML = "⏳ Ожидание...";
-}
 
     async function checkBothReadyAndResolve() {
         if (!currentBattleId || isResolving) return;
@@ -981,17 +982,18 @@
             
             let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
             
-            if (opponentSelected && opponentSelected.length === 4 && !isMyTurn && data.player1_ready !== data.player2_ready) {
+            // Показываем карты атакующего защитнику (если атакующий уже выбрал)
+            if (opponentSelected && opponentSelected.length === 4 && !isMyTurn && !data.player1_ready && !data.player2_ready) {
                 let isNew = JSON.stringify(opponentSelected) !== JSON.stringify(opponentSelectedCards);
                 if (isNew) {
                     opponentSelectedCards = opponentSelected;
                     document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
                     showOpponentCards(opponentSelected);
+                    document.getElementById("readyBtn").style.display = "block";
+                    document.getElementById("readyBtn").disabled = false;
+                    document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
+                    document.getElementById("battleLog").innerHTML = `Раунд ${data.round}. Выбери 4 карты для защиты!`;
                     if (currentBattle) {
-                        document.getElementById("readyBtn").style.display = "block";
-                        document.getElementById("readyBtn").disabled = false;
-                        document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
-                        document.getElementById("battleLog").innerHTML = `Раунд ${data.round}. Выбери 4 карты для защиты!`;
                         currentSquad = isPlayer1 ? currentBattle.player1Squad : currentBattle.player2Squad;
                         currentSelected = [];
                         showBattleScreen();
