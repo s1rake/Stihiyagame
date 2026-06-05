@@ -669,33 +669,13 @@
 async function updateBattle() {
     if (!currentBattleId) return;
     
-    console.log("=== updateBattle START ===");
-    
     let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-    if (error) {
-        console.error("Ошибка загрузки battles:", error);
-        return;
-    }
-    if (!data) {
-        console.log("Нет данных battles");
-        return;
-    }
+    if (error || !data) return;
     
     currentBattle = data;
     let isPlayer1 = data.player1_id === currentUser.id;
     let isMyTurn = (data.current_turn === currentUser.id);
     let round = data.round;
-    
-    console.log("Данные из БД:", {
-        isPlayer1,
-        isMyTurn,
-        round,
-        player1_selected: data.player1_selected,
-        player2_selected: data.player2_selected,
-        player1_ready: data.player1_ready,
-        player2_ready: data.player2_ready,
-        current_turn: data.current_turn
-    });
     
     document.getElementById("scoreDisplay").innerHTML = `${data.player1_score}:${data.player2_score}`;
     document.getElementById("roundNum").innerHTML = round;
@@ -703,10 +683,18 @@ async function updateBattle() {
     
     let isAttacker = (round === 1 || round === 3) ? isPlayer1 : !isPlayer1;
     
+    console.log("=== updateBattle ===");
+    console.log("round:", round);
     console.log("isAttacker:", isAttacker);
     console.log("isMyTurn:", isMyTurn);
+    console.log("isPlayer1:", isPlayer1);
+    console.log("player1_selected:", data.player1_selected);
+    console.log("player2_selected:", data.player2_selected);
+    console.log("player1_ready:", data.player1_ready);
+    console.log("player2_ready:", data.player2_ready);
+    console.log("current_turn:", data.current_turn);
     
-    // ===== СЛУЧАЙ 1: РАСЧЁТ РАУНДА =====
+    // ===== СЛУЧАЙ 1: РАСЧЁТ РАУНДА (ОБА ВЫБРАЛИ) =====
     if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
         console.log("Режим: РАСЧЁТ РАУНДА");
         
@@ -727,21 +715,16 @@ async function updateBattle() {
             if (!isPlayer1Attacker) newScore1++; else newScore2++;
         }
         
-        console.log("Обновляем счёт:", { newScore1, newScore2 });
-        
-        const { error: updateError } = await sb.from("battles").update({
+        await sb.from("battles").update({
             player1_score: newScore1,
             player2_score: newScore2,
             player1_ready: false,
             player2_ready: false
         }).eq("id", currentBattleId);
         
-        if (updateError) console.error("Ошибка обновления счёта:", updateError);
-        
         await showRoundResult(attackerName, result.attackerTotal, defenderName, result.defenderTotal, result.results, result.roundWinner);
         
         if (round >= 3) {
-            console.log("Бой завершён!");
             let playerWon = (isPlayer1 && newScore1 > newScore2) || (!isPlayer1 && newScore2 > newScore1);
             let league = getLeagueByTrophies(currentUser.trophies);
             let lossPenalty = getLossPenalty(league.name);
@@ -766,6 +749,8 @@ async function updateBattle() {
         
         let newSquad1 = getRandomSquad();
         let newSquad2 = getRandomSquad();
+        
+        // Следующий ход: после раунда 1 атакует игрок 2, после раунда 2 атакует игрок 1
         let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
         
         console.log("Переход к раунду", round + 1, "следующий ход у игрока", nextTurn);
@@ -784,61 +769,63 @@ async function updateBattle() {
         currentSquad = [];
         currentSelected = [];
     }
- // ===== СЛУЧАЙ 2: Атакующий выбирает карты =====
-if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
-    console.log("Режим: АТАКУЮЩИЙ выбирает карты");
-    if (currentSquad.length === 0) {
-        currentSquad = isPlayer1 ? [...(data.player1_squad || [])] : [...(data.player2_squad || [])];
+    // ===== СЛУЧАЙ 2: Атакующий выбирает карты =====
+    else if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
+        console.log("Режим: АТАКУЮЩИЙ выбирает карты");
+        if (currentSquad.length === 0) {
+            currentSquad = isPlayer1 ? [...(data.player1_squad || [])] : [...(data.player2_squad || [])];
+            currentSelected = [];
+            console.log("Загружены карты атакующего:", currentSquad);
+        }
+        document.getElementById("readyBtn").style.display = "block";
+        document.getElementById("readyBtn").disabled = false;
+        document.getElementById("readyBtn").innerHTML = "⚔️ АТАКОВАТЬ";
+        document.getElementById("waitingOpponentMsg").style.display = "none";
+        document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
+        document.getElementById("opponentCardsField").innerHTML = '';
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
+        showMyCards();
+    }
+    // ===== СЛУЧАЙ 3: Защитник выбирает защиту (атакующий уже выбрал) =====
+    else if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
+        console.log("Режим: ЗАЩИТНИК выбирает защиту");
+        
+        let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
+        let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
+        let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+        
+        console.log("Карты атакующего:", attackerCards);
+        console.log("Мои карты для защиты:", mySquad);
+        
+        if (attackerCards && attackerCards.length === 4) {
+            showOpponentCards(attackerCards);
+            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
+        }
+        
+        if (currentSquad.length === 0) {
+            currentSquad = [...(mySquad || [])];
+            currentSelected = [];
+            console.log("Загружены карты защитника:", currentSquad);
+        }
+        document.getElementById("readyBtn").style.display = "block";
+        document.getElementById("readyBtn").disabled = false;
+        document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
+        document.getElementById("waitingOpponentMsg").style.display = "none";
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
+        showMyCards();
+    }
+    // ===== СЛУЧАЙ 4: Ожидание =====
+    else {
+        console.log("Режим: ОЖИДАНИЕ");
+        document.getElementById("readyBtn").style.display = "none";
+        document.getElementById("waitingOpponentMsg").style.display = "block";
+        document.getElementById("opponentLabel").innerHTML = "❓ ОЖИДАНИЕ КАРТ";
+        document.getElementById("opponentCardsField").innerHTML = '';
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание выбора карт от соперника...`;
+        currentSquad = [];
         currentSelected = [];
-        console.log("Загружены карты атакующего:", currentSquad);
+        showMyCards();
     }
-    document.getElementById("readyBtn").style.display = "block";
-    document.getElementById("readyBtn").disabled = false;
-    document.getElementById("readyBtn").innerHTML = "⚔️ АТАКОВАТЬ";
-    document.getElementById("waitingOpponentMsg").style.display = "none";
-    document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-    document.getElementById("opponentCardsField").innerHTML = '';
-    document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
-    showMyCards();
-}
-// ===== СЛУЧАЙ 3: Защитник выбирает защиту =====
-else if (isMyTurn && ((!data.player1_selected && data.player2_selected && data.player2_selected.length === 4) || (!data.player2_selected && data.player1_selected && data.player1_selected.length === 4))) {
-    let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
-    let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
-    let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
-    
-    console.log("Режим: ЗАЩИТНИК выбирает защиту");
-    console.log("Карты атакующего:", attackerCards);
-    
-    if (attackerCards && attackerCards.length === 4) {
-        showOpponentCards(attackerCards);
-        document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
-    }
-    
-    if (currentSquad.length === 0) {
-        currentSquad = [...(mySquad || [])];
-        currentSelected = [];
-        console.log("Загружены карты защитника:", currentSquad);
-    }
-    document.getElementById("readyBtn").style.display = "block";
-    document.getElementById("readyBtn").disabled = false;
-    document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
-    document.getElementById("waitingOpponentMsg").style.display = "none";
-    document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
-    showMyCards();
-}
-// ===== СЛУЧАЙ 4: Ожидание =====
-else {
-    console.log("Режим: ОЖИДАНИЕ");
-    document.getElementById("readyBtn").style.display = "none";
-    document.getElementById("waitingOpponentMsg").style.display = "block";
-    document.getElementById("opponentLabel").innerHTML = "❓ ОЖИДАНИЕ КАРТ";
-    document.getElementById("opponentCardsField").innerHTML = '';
-    document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание выбора карт от соперника...`;
-    currentSquad = [];
-    currentSelected = [];
-    showMyCards();
-}
     
     document.getElementById("battlePanel").classList.add("active");
     document.getElementById("lobbyPanel").classList.remove("active");
@@ -846,8 +833,6 @@ else {
     document.getElementById("deckPanel").classList.remove("active");
     document.getElementById("shopPanel").classList.remove("active");
     document.getElementById("leaguePanel").classList.remove("active");
-    
-    console.log("=== updateBattle END ===");
 }
 
  
