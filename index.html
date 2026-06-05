@@ -690,9 +690,9 @@ async function updateBattle() {
     console.log("player1_ready:", data.player1_ready);
     console.log("player2_ready:", data.player2_ready);
     
-    // ===== СЛУЧАЙ 1: ОБА ВЫБРАЛИ - СЧИТАЕМ РЕЗУЛЬТАТ (САМЫЙ ПРИОРИТЕТНЫЙ) =====
-    if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
-        console.log("Режим: РАСЧЁТ РАУНДА");
+// ===== СЛУЧАЙ 1: ОБА ВЫБРАЛИ - СЧИТАЕМ РЕЗУЛЬТАТ =====
+if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
+    console.log("Режим: РАСЧЁТ РАУНДА");
         
         let isPlayer1Attacker = (round === 1 || round === 3);
         let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
@@ -890,20 +890,20 @@ async function submitReady() {
         }
         document.getElementById("battleLog").innerHTML = `Ожидание выбора защиты от соперника...`;
     } else {
-        // ЗАЩИТНИК - сохраняем выбранные карты в ПРАВИЛЬНОЕ поле
+        // ЗАЩИТНИК
         console.log("Защитник, завершаем раунд");
         
         if (isPlayer1) {
-            // Игрок 1 защищается -> сохраняем в player2_selected
+            // Игрок 1 защищается -> его выбранные карты сохраняем в player1_selected
             await sb.from("battles").update({
-                player2_selected: currentSelected,
+                player1_selected: currentSelected,
                 player1_ready: true,
                 player2_ready: true
             }).eq("id", currentBattleId);
         } else {
-            // Игрок 2 защищается -> сохраняем в player1_selected
+            // Игрок 2 защищается -> его выбранные карты сохраняем в player2_selected
             await sb.from("battles").update({
-                player1_selected: currentSelected,
+                player2_selected: currentSelected,
                 player1_ready: true,
                 player2_ready: true
             }).eq("id", currentBattleId);
@@ -914,7 +914,8 @@ async function submitReady() {
     document.getElementById("readyBtn").disabled = true;
     document.getElementById("readyBtn").innerHTML = "⏳ Ожидание...";
 }
-function showMyCards() {
+ 
+ function showMyCards() {
     let playerField = document.getElementById("playerCardsField");
     if (currentSquad && currentSquad.length >= 4) {
         playerField.innerHTML = currentSquad.map((card, idx) => `
@@ -954,64 +955,6 @@ function toggleSelectCard(idx) {
         return;
     }
     showMyCards();
-}
-
-async function submitReady() {
-    if (currentSelected.length !== 4) { 
-        alert("Выбери 4 карты!"); 
-        return; 
-    }
-    
-    let isPlayer1 = currentBattle.player1_id === currentUser.id;
-    let isAttacker = (currentBattle.round === 1 || currentBattle.round === 3) ? isPlayer1 : !isPlayer1;
-    
-    console.log("submitReady - isAttacker:", isAttacker);
-    console.log("submitReady - isPlayer1:", isPlayer1);
-    console.log("submitReady - currentSelected:", currentSelected);
-    
-    if (isAttacker) {
-        // АТАКУЮЩИЙ - сохраняем выбранные карты и ПЕРЕДАЁМ ХОД ЗАЩИТНИКУ
-        let nextTurn = currentBattle.round === 1 ? currentBattle.player2_id : currentBattle.player1_id;
-        console.log("Атакующий, передаём ход игроку:", nextTurn);
-        
-        if (isPlayer1) {
-            const { error } = await sb.from("battles").update({
-                player1_selected: currentSelected,
-                current_turn: nextTurn
-            }).eq("id", currentBattleId);
-            if (error) console.error("Ошибка при сохранении атаки:", error);
-        } else {
-            const { error } = await sb.from("battles").update({
-                player2_selected: currentSelected,
-                current_turn: nextTurn
-            }).eq("id", currentBattleId);
-            if (error) console.error("Ошибка при сохранении атаки:", error);
-        }
-        document.getElementById("battleLog").innerHTML = `Ожидание выбора защиты от соперника...`;
-    } else {
-        // ЗАЩИТНИК - сохраняем выбранные карты и СТАВИМ ОБА ФЛАГА READY = true
-        console.log("Защитник, завершаем раунд");
-        
-        if (isPlayer1) {
-            const { error } = await sb.from("battles").update({
-                player2_selected: currentSelected,
-                player1_ready: true,
-                player2_ready: true
-            }).eq("id", currentBattleId);
-            if (error) console.error("Ошибка при сохранении защиты:", error);
-        } else {
-            const { error } = await sb.from("battles").update({
-                player1_selected: currentSelected,
-                player1_ready: true,
-                player2_ready: true
-            }).eq("id", currentBattleId);
-            if (error) console.error("Ошибка при сохранении защиты:", error);
-        }
-        document.getElementById("battleLog").innerHTML = `Ожидание расчёта раунда...`;
-    }
-    
-    document.getElementById("readyBtn").disabled = true;
-    document.getElementById("readyBtn").innerHTML = "⏳ Ожидание...";
 }
 
     async function checkAndClaimRewards() {
