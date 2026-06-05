@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Стихии Битва — v2</title>
+    <title>Стихии Битва — Лобби</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
             min-height: 100vh;
             color: white;
             padding: 20px;
@@ -17,7 +17,7 @@
         .screen { display: none; }
         .screen.active { display: block; }
         .header {
-            background: rgba(0,0,0,0.4);
+            background: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(12px);
             border-radius: 32px;
             padding: 16px 24px;
@@ -28,9 +28,9 @@
             margin-bottom: 24px;
             align-items: center;
         }
-        .user-stats { display: flex; gap: 20px; flex-wrap: wrap; }
-        .badge { background: rgba(0,0,0,0.6); padding: 6px 16px; border-radius: 40px; }
-        .currency { background: linear-gradient(135deg, #f9b42c, #f5a623); color: #1e1a2f; }
+        .user-stats { display: flex; gap: 20px; font-weight: bold; flex-wrap: wrap; }
+        .badge { background: rgba(0, 0, 0, 0.6); padding: 6px 16px; border-radius: 40px; }
+        .currency { background: linear-gradient(135deg, #f7971e, #ffd200); color: #1e1a2f; }
         .trophies { background: linear-gradient(135deg, #b83bff, #6a1b9a); }
         button {
             background: linear-gradient(95deg, #5f6cff, #9333ea);
@@ -90,12 +90,30 @@
         .pack.earth { border: 2px solid #44ff44; }
         .pack.wind { border: 2px solid #ffaa44; }
         .selection-info { background: rgba(0,0,0,0.5); padding: 10px; border-radius: 20px; margin: 10px 0; text-align: center; }
-        .code-display { font-size: 32px; font-weight: bold; letter-spacing: 5px; background: #000; padding: 15px; border-radius: 20px; margin: 15px 0; }
+        .lobby-container { background: rgba(0,0,0,0.4); border-radius: 32px; padding: 20px; margin-bottom: 20px; }
+        .battle-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+        .battle-item {
+            background: rgba(0,0,0,0.5);
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .battle-code { font-size: 20px; font-weight: bold; font-family: monospace; background: #000; padding: 5px 15px; border-radius: 20px; }
+        .join-btn { background: #44ff44; color: #000; }
+        .delete-btn { background: #ff4444; }
+        .status-waiting { color: #ffaa44; }
+        .status-active { color: #44ff44; }
+        .status-finished { color: #ff4444; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="container">
+    <!-- АВТОРИЗАЦИЯ -->
     <div id="authScreen" class="screen active">
         <div class="auth-container">
             <h1>⚔️ Стихии Битва ⚔️</h1>
@@ -115,6 +133,7 @@
         </div>
     </div>
 
+    <!-- ОСНОВНАЯ ИГРА -->
     <div id="mainScreen" class="screen">
         <div class="header">
             <h2>🌀 Стихии Битва</h2>
@@ -130,17 +149,38 @@
         <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:28px;">
             <button id="toDeckBtn">📚 Коллекция / Колода</button>
             <button id="toShopBtn">🛒 Магазин</button>
-            <button id="createBattleBtn">⚔️ Создать PvP</button>
-            <button id="findBattleBtn">🔍 Найти бой</button>
-            <button id="botBattleBtn">🤖 Бот</button>
+            <button id="toLobbyBtn">🎮 Лобби PvP</button>
+            <button id="botBattleBtn">🤖 Бой с ботом</button>
             <button id="leagueBtn">🏆 Лига</button>
         </div>
 
-        <div id="searchPanel" style="background:rgba(0,0,0,0.5); border-radius:24px; padding:20px; margin-bottom:20px; display:none;">
-            <input type="text" id="battleCodeInput" placeholder="Код боя" style="padding:10px; border-radius:20px; border:none; margin-right:10px;">
-            <button id="joinBattleBtn">Присоединиться</button>
+        <!-- ЛОББИ -->
+        <div id="lobbyPanel" class="screen">
+            <div class="lobby-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <h3>🎮 Активные бои</h3>
+                    <button id="createLobbyBtn">➕ Создать бой</button>
+                </div>
+                <div id="battleList" class="battle-list">
+                    <div style="text-align: center; padding: 40px;">Загрузка...</div>
+                </div>
+            </div>
         </div>
 
+        <!-- ОЖИДАНИЕ БОЯ -->
+        <div id="waitingPanel" class="screen">
+            <div class="lobby-container">
+                <h3 id="waitingTitle">⏳ Ожидание соперника...</h3>
+                <div class="code-display" id="waitingCode" style="font-size: 32px; text-align: center; background: #000; padding: 15px; border-radius: 20px; margin: 20px;"></div>
+                <div id="playersList" style="background: rgba(0,0,0,0.3); border-radius: 20px; padding: 20px; margin: 20px 0;">
+                    <h4>Игроки:</h4>
+                    <div id="playersContainer"></div>
+                </div>
+                <button id="cancelBattleBtn" style="background: #ff4444;">Отменить</button>
+            </div>
+        </div>
+
+        <!-- КОЛЛЕКЦИЯ -->
         <div id="deckPanel" class="screen">
             <div class="deck-builder">
                 <div class="collection-area">
@@ -154,6 +194,7 @@
             </div>
         </div>
 
+        <!-- МАГАЗИН -->
         <div id="shopPanel" class="screen">
             <h3>🃏 Магазин (100💰 = 3 карты)</h3>
             <div class="shop-grid">
@@ -164,10 +205,12 @@
             </div>
         </div>
 
+        <!-- ЛИГА -->
         <div id="leaguePanel" class="screen">
             <div id="leagueInfo"></div>
         </div>
 
+        <!-- БОЕВОЙ ЭКРАН -->
         <div id="battlePanel" class="screen">
             <div style="display: flex; justify-content: space-between;">
                 <h3 id="battleOpponentName">Противник</h3>
@@ -198,21 +241,12 @@
     </div>
 </div>
 
-<div id="battleCodeModal" class="modal hidden">
-    <div class="modal-card">
-        <h2>🎮 Код боя</h2>
-        <div class="code-display" id="battleCodeDisplay"></div>
-        <p>Передай код сопернику</p>
-        <button id="closeCodeBtn">Закрыть</button>
-    </div>
-</div>
-
 <script>
     const SB_URL = "https://cpfhtzhmwblkkhvyqiyi.supabase.co";
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
     const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-    // ===== КАРТЫ: 5+4+3+2+1 = 15 уникальных на стихию =====
+    // КАРТЫ
     const cardsDB = {
         fire: [
             { name: "Имолец", rarity: "common", damage: 10 },
@@ -305,8 +339,11 @@
     let currentSelected = [];
     let currentSquad = [];
     let currentBattleId = null;
-    let pvpInterval = null;
+    let lobbyInterval = null;
+    let waitingInterval = null;
+    let battleInterval = null;
 
+    // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
     function getRandomCardByElement(element, forcedRarity = null) {
         let pool = cardsDB[element];
         if (forcedRarity) pool = pool.filter(c => c.rarity === forcedRarity);
@@ -326,6 +363,22 @@
         return cards;
     }
 
+    function getRandomSquad() {
+        if (!currentUser?.deck?.length) return [];
+        let shuffled = [...currentUser.deck];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled.slice(0, 6);
+    }
+
+    function computeDamage(attacker, attackerElem, defenderElem) {
+        let mult = elementBonus[attackerElem][defenderElem] || 1;
+        return Math.floor(attacker.damage * mult);
+    }
+
+    // ===== РАБОТА С БД =====
     async function saveUser() {
         if (!currentUser) return;
         await sb.from("users").upsert({
@@ -360,50 +413,7 @@
         if (session) loadUser(JSON.parse(session).userId);
     }
 
-    async function register() {
-        let username = document.getElementById("regUsername").value.trim();
-        let password = document.getElementById("regPassword").value;
-        let element = document.getElementById("regElement").value;
-        if (!username || !password) { alert("Заполни всё!"); return; }
-        
-        let hash = btoa(password);
-        let { data: existing } = await sb.from("users").select("id").eq("username", username);
-        if (existing?.length) { alert("Имя занято!"); return; }
-        
-        let starterCards = getStarterCards(element);
-        let starterDeck = starterCards.map(c => ({ name: c.name, rarity: c.rarity, damage: c.damage }));
-        
-        let { data, error } = await sb.from("users").insert({
-            username, password_hash: hash, element,
-            currency: 0, trophies: 0,
-            collection: starterCards, deck: starterDeck
-        }).select().single();
-        
-        if (error) { alert("Ошибка: " + error.message); return; }
-        currentUser = data;
-        saveSession();
-        updateUI();
-        renderCards();
-        document.getElementById("authScreen").classList.remove("active");
-        document.getElementById("mainScreen").classList.add("active");
-        document.getElementById("deckPanel").classList.add("active");
-    }
-
-    async function login() {
-        let username = document.getElementById("loginUsername").value.trim();
-        let password = document.getElementById("loginPassword").value;
-        let hash = btoa(password);
-        let { data, error } = await sb.from("users").select("*").eq("username", username).eq("password_hash", hash).single();
-        if (error || !data) { alert("Неверно!"); return; }
-        currentUser = data;
-        saveSession();
-        updateUI();
-        renderCards();
-        document.getElementById("authScreen").classList.remove("active");
-        document.getElementById("mainScreen").classList.add("active");
-        document.getElementById("deckPanel").classList.add("active");
-    }
-
+    // ===== UI =====
     function updateUI() {
         if (!currentUser) return;
         document.getElementById("currencyDisplay").innerHTML = `💰 ${currentUser.currency}`;
@@ -474,20 +484,245 @@
         document.getElementById("closePackBtn").onclick = () => modal.classList.add("hidden");
     }
 
-    function getRandomSquad() {
-        let shuffled = [...currentUser.deck];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    // ===== ЛОББИ =====
+    async function loadLobby() {
+        let { data } = await sb.from("battles").select("*").in("status", ["waiting", "active"]).order("created_at", { ascending: false });
+        let container = document.getElementById("battleList");
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 40px;">Нет активных боев. Создай свой!</div>';
+            return;
         }
-        return shuffled.slice(0, 6);
+        container.innerHTML = data.map(battle => {
+            let playerCount = (battle.player1_id ? 1 : 0) + (battle.player2_id ? 1 : 0);
+            let statusText = battle.status === "waiting" ? "🟡 Ожидание" : "🟢 В бою";
+            let statusClass = battle.status === "waiting" ? "status-waiting" : "status-active";
+            let canJoin = battle.status === "waiting" && battle.player2_id === null && battle.player1_id !== currentUser.id;
+            return `
+                <div class="battle-item">
+                    <div>
+                        <span class="battle-code">${battle.battle_code}</span>
+                        <div style="margin-top: 5px;">
+                            👤 ${battle.player1_username || "?"} 
+                            ${battle.player2_username ? ` vs 👤 ${battle.player2_username}` : '...'}
+                        </div>
+                        <div class="${statusClass}">${statusText}</div>
+                    </div>
+                    ${canJoin ? `<button class="join-btn" onclick="joinBattleById(${battle.id})">🔗 Присоединиться</button>` : ''}
+                    ${battle.player1_id === currentUser.id && battle.status === "waiting" ? `<button class="delete-btn" onclick="cancelBattle(${battle.id})">🗑️ Отменить</button>` : ''}
+                </div>
+            `;
+        }).join('');
     }
 
-    function computeDamage(attacker, attackerElem, defenderElem) {
-        let mult = elementBonus[attackerElem][defenderElem] || 1;
-        return Math.floor(attacker.damage * mult);
+    async function createBattle() {
+        if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт в колоду!"); return; }
+        let code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        let squad = getRandomSquad();
+        let { data, error } = await sb.from("battles").insert({
+            battle_code: code,
+            player1_id: currentUser.id,
+            player1_username: currentUser.username,
+            player1_element: currentUser.element,
+            player1_squad: squad,
+            status: "waiting",
+            round: 1,
+            player1_score: 0,
+            player2_score: 0
+        }).select().single();
+        if (error) { alert("Ошибка: " + error.message); return; }
+        currentBattleId = data.id;
+        startWaiting();
     }
 
+    async function joinBattleById(battleId) {
+        if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт в колоду!"); return; }
+        let squad = getRandomSquad();
+        let { data, error } = await sb.from("battles").update({
+            player2_id: currentUser.id,
+            player2_username: currentUser.username,
+            player2_element: currentUser.element,
+            player2_squad: squad,
+            status: "active",
+            current_turn: data?.player1_id
+        }).eq("id", battleId).eq("status", "waiting").select().single();
+        if (error) { alert("Ошибка: " + error.message); return; }
+        currentBattleId = data.id;
+        startBattleFromData(data);
+    }
+
+    async function cancelBattle(battleId) {
+        await sb.from("battles").delete().eq("id", battleId).eq("player1_id", currentUser.id);
+        loadLobby();
+    }
+
+    function startWaiting() {
+        if (waitingInterval) clearInterval(waitingInterval);
+        document.getElementById("waitingPanel").classList.add("active");
+        document.getElementById("lobbyPanel").classList.remove("active");
+        document.getElementById("deckPanel").classList.remove("active");
+        document.getElementById("shopPanel").classList.remove("active");
+        document.getElementById("battlePanel").classList.remove("active");
+        
+        waitingInterval = setInterval(async () => {
+            if (!currentBattleId) return;
+            let { data } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+            if (data) {
+                document.getElementById("waitingCode").innerText = data.battle_code;
+                let playersHtml = `<div>👤 ${data.player1_username || "?"} (создатель)</div>`;
+                if (data.player2_username) {
+                    playersHtml += `<div>👤 ${data.player2_username} (присоединился)</div>`;
+                } else {
+                    playersHtml += `<div style="opacity: 0.5;">⏳ Ожидание соперника...</div>`;
+                }
+                document.getElementById("playersContainer").innerHTML = playersHtml;
+                
+                if (data.status === "active" && data.player2_id) {
+                    clearInterval(waitingInterval);
+                    startBattleFromData(data);
+                }
+            }
+        }, 1000);
+    }
+
+    async function startBattleFromData(data) {
+        currentBattleId = data.id;
+        let isPlayer1 = data.player1_id === currentUser.id;
+        let playerSquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+        let opponentSquad = isPlayer1 ? data.player2_squad : data.player1_squad;
+        let opponentName = isPlayer1 ? data.player2_username : data.player1_username;
+        let opponentElement = isPlayer1 ? data.player2_element : data.player1_element;
+        
+        currentBattle = {
+            isBot: false,
+            battleId: data.id,
+            opponentName: opponentName || "Игрок",
+            opponentElement: opponentElement,
+            opponentSquad: opponentSquad || [],
+            round: data.round || 1,
+            playerScore: isPlayer1 ? data.player1_score : data.player2_score,
+            opponentScore: isPlayer1 ? data.player2_score : data.player1_score,
+            turn: data.current_turn
+        };
+        currentSquad = playerSquad || [];
+        currentSelected = [];
+        showBattleScreen();
+        startBattleInterval();
+    }
+
+    function startBattleInterval() {
+        if (battleInterval) clearInterval(battleInterval);
+        battleInterval = setInterval(async () => {
+            if (!currentBattleId) return;
+            let { data } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+            if (data && data.status === "finished") {
+                clearInterval(battleInterval);
+                alert("Бой завершён!");
+                document.getElementById("battlePanel").classList.remove("active");
+                document.getElementById("lobbyPanel").classList.add("active");
+                loadLobby();
+                currentBattle = null;
+                currentBattleId = null;
+                return;
+            }
+            if (data && data.current_turn === currentUser.id) {
+                document.getElementById("attackBtn").disabled = false;
+            } else {
+                document.getElementById("attackBtn").disabled = true;
+            }
+            if (data && (data.round !== currentBattle?.round || data.player1_score !== currentBattle?.playerScore)) {
+                let isPlayer1 = data.player1_id === currentUser.id;
+                currentBattle.round = data.round;
+                currentBattle.playerScore = isPlayer1 ? data.player1_score : data.player2_score;
+                currentBattle.opponentScore = isPlayer1 ? data.player2_score : data.player1_score;
+                currentBattle.turn = data.current_turn;
+                document.getElementById("roundNum").innerHTML = currentBattle.round;
+                document.getElementById("scoreDisplay").innerHTML = `${currentBattle.playerScore}:${currentBattle.opponentScore}`;
+                if (currentBattle.round <= 3) {
+                    currentSquad = getRandomSquad();
+                    currentSelected = [];
+                    updateBattleDisplay();
+                    updateSelection();
+                    document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}! Выбери 4 карты для атаки.`;
+                }
+            }
+        }, 1000);
+    }
+
+    async function attackPvp() {
+        if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
+        
+        let attacking = currentSelected.map(i => currentSquad[i]);
+        let playerTotal = 0;
+        let logs = [];
+        for (let card of attacking) {
+            let dmg = computeDamage(card, currentUser.element, currentBattle.opponentElement);
+            playerTotal += dmg;
+            logs.push(`${card.name} → ${currentBattle.opponentElement} = ${dmg}`);
+        }
+        
+        let shuffledOpp = [...currentBattle.opponentSquad];
+        for (let i = shuffledOpp.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledOpp[i], shuffledOpp[j]] = [shuffledOpp[j], shuffledOpp[i]];
+        }
+        let defending = shuffledOpp.slice(0, 4);
+        let opponentTotal = 0;
+        for (let card of defending) {
+            let dmg = computeDamage(card, currentBattle.opponentElement, currentUser.element);
+            opponentTotal += dmg;
+            logs.push(`Враг (${card.name}) → ${currentUser.element} = ${dmg}`);
+        }
+        
+        let playerWonRound = playerTotal > opponentTotal;
+        let newPlayerScore = currentBattle.playerScore + (playerWonRound ? 1 : 0);
+        let newOpponentScore = currentBattle.opponentScore + (!playerWonRound && opponentTotal > playerTotal ? 1 : 0);
+        
+        if (currentBattle.round === 3) {
+            let playerWonMatch = newPlayerScore > newOpponentScore;
+            await sb.from("battles").update({
+                status: "finished",
+                winner_id: playerWonMatch ? currentUser.id : null,
+                player1_score: currentBattle.playerScore,
+                player2_score: currentBattle.opponentScore
+            }).eq("id", currentBattleId);
+            
+            let trophies = playerWonMatch ? 25 : -8;
+            let coins = playerWonMatch ? 50 : 0;
+            currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
+            currentUser.currency += coins;
+            await saveUser();
+            updateUI();
+            alert(`${playerWonMatch ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 ${trophies > 0 ? "+" : ""}${trophies}\n💰 +${coins}`);
+            
+            clearInterval(battleInterval);
+            document.getElementById("battlePanel").classList.remove("active");
+            document.getElementById("lobbyPanel").classList.add("active");
+            loadLobby();
+            currentBattle = null;
+            currentBattleId = null;
+        } else {
+            let isPlayer1 = (await sb.from("battles").select("player1_id").eq("id", currentBattleId).single()).data?.player1_id === currentUser.id;
+            await sb.from("battles").update({
+                round: currentBattle.round + 1,
+                player1_score: isPlayer1 ? newPlayerScore : newOpponentScore,
+                player2_score: isPlayer1 ? newOpponentScore : newPlayerScore,
+                current_turn: null
+            }).eq("id", currentBattleId);
+            
+            currentBattle.round++;
+            currentBattle.playerScore = newPlayerScore;
+            currentBattle.opponentScore = newOpponentScore;
+            document.getElementById("roundNum").innerHTML = currentBattle.round;
+            document.getElementById("scoreDisplay").innerHTML = `${currentBattle.playerScore}:${currentBattle.opponentScore}`;
+            document.getElementById("battleLog").innerHTML = logs.join("<br>") + `\n\nРаунд ${currentBattle.round}! Жди хода соперника...`;
+            currentSquad = getRandomSquad();
+            currentSelected = [];
+            updateBattleDisplay();
+            updateSelection();
+        }
+    }
+
+    // БОЙ С БОТОМ
     async function startBotBattle() {
         if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт в колоду!"); return; }
         currentSquad = getRandomSquad();
@@ -501,13 +736,14 @@
 
     function showBattleScreen() {
         document.getElementById("battlePanel").classList.add("active");
+        document.getElementById("lobbyPanel").classList.remove("active");
+        document.getElementById("waitingPanel").classList.remove("active");
         document.getElementById("deckPanel").classList.remove("active");
         document.getElementById("shopPanel").classList.remove("active");
-        document.getElementById("leaguePanel").classList.remove("active");
-        document.getElementById("searchPanel").style.display = "none";
         
+        let opponentName = currentBattle.isBot ? "🤖 Бот" : currentBattle.opponentName;
         let elemIcon = currentBattle.opponentElement === "fire" ? "🔥" : currentBattle.opponentElement === "water" ? "💧" : currentBattle.opponentElement === "earth" ? "🌍" : "💨";
-        document.getElementById("battleOpponentName").innerHTML = currentBattle.isBot ? `🤖 Бот ${elemIcon}` : "👤 Игрок";
+        document.getElementById("battleOpponentName").innerHTML = `${opponentName} ${elemIcon}`;
         document.getElementById("roundNum").innerHTML = currentBattle.round;
         document.getElementById("scoreDisplay").innerHTML = `${currentBattle.playerScore}:${currentBattle.opponentScore}`;
         document.getElementById("battleLog").innerHTML = "Выбери 4 карты для атаки!";
@@ -542,7 +778,7 @@
         updateSelection();
     };
 
-    async function attack() {
+    async function attackBot() {
         if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
         
         let attacking = currentSelected.map(i => currentSquad[i]);
@@ -581,7 +817,18 @@
         document.getElementById("scoreDisplay").innerHTML = `${currentBattle.playerScore}:${currentBattle.opponentScore}`;
         
         if (currentBattle.round === 3) {
-            await endBattle();
+            let playerWon = currentBattle.playerScore > currentBattle.opponentScore;
+            let trophies = playerWon ? 25 : -8;
+            let coins = playerWon ? 100 : 0;
+            currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
+            currentUser.currency += coins;
+            await saveUser();
+            updateUI();
+            alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 ${trophies > 0 ? "+" : ""}${trophies}\n💰 +${coins}`);
+            currentBattle = null;
+            document.getElementById("battlePanel").classList.remove("active");
+            document.getElementById("lobbyPanel").classList.add("active");
+            loadLobby();
         } else {
             currentBattle.round++;
             document.getElementById("roundNum").innerHTML = currentBattle.round;
@@ -593,91 +840,96 @@
         }
     }
 
-    async function endBattle() {
-        let playerWon = currentBattle.playerScore > currentBattle.opponentScore;
-        let trophies = playerWon ? 25 : -8;
-        let coins = playerWon ? (currentBattle.isBot ? 100 : 50) : 0;
-        currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
-        currentUser.currency += coins;
-        await saveUser();
-        updateUI();
-        alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 ${trophies > 0 ? "+" : ""}${trophies}\n💰 +${coins}`);
-        currentBattle = null;
-        document.getElementById("battlePanel").classList.remove("active");
-        document.getElementById("deckPanel").classList.add("active");
-    }
-
-    async function createBattle() {
-        if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт!"); return; }
-        let code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        let squad = getRandomSquad();
-        let { data, error } = await sb.from("battles").insert({
-            battle_code: code,
-            player1_id: currentUser.id,
-            player1_username: currentUser.username,
-            player1_element: currentUser.element,
-            player1_squad: squad,
-            status: "waiting",
-            round: 1
+    // ===== АВТОРИЗАЦИЯ =====
+    async function register() {
+        let username = document.getElementById("regUsername").value.trim();
+        let password = document.getElementById("regPassword").value;
+        let element = document.getElementById("regElement").value;
+        if (!username || !password) { alert("Заполни всё!"); return; }
+        
+        let hash = btoa(password);
+        let { data: existing } = await sb.from("users").select("id").eq("username", username);
+        if (existing?.length) { alert("Имя занято!"); return; }
+        
+        let starterCards = getStarterCards(element);
+        let starterDeck = starterCards.map(c => ({ name: c.name, rarity: c.rarity, damage: c.damage }));
+        
+        let { data, error } = await sb.from("users").insert({
+            username, password_hash: hash, element,
+            currency: 0, trophies: 0,
+            collection: starterCards, deck: starterDeck
         }).select().single();
+        
         if (error) { alert("Ошибка: " + error.message); return; }
-        document.getElementById("battleCodeDisplay").innerText = code;
-        document.getElementById("battleCodeModal").classList.remove("hidden");
-        document.getElementById("closeCodeBtn").onclick = () => {
-            document.getElementById("battleCodeModal").classList.add("hidden");
-            currentBattleId = data.id;
-            startPvpListener();
-        };
+        currentUser = data;
+        saveSession();
+        updateUI();
+        renderCards();
+        document.getElementById("authScreen").classList.remove("active");
+        document.getElementById("mainScreen").classList.add("active");
+        document.getElementById("lobbyPanel").classList.add("active");
+        loadLobby();
+        if (lobbyInterval) clearInterval(lobbyInterval);
+        lobbyInterval = setInterval(loadLobby, 3000);
     }
 
-    async function joinBattle() {
-        let code = document.getElementById("battleCodeInput").value.trim().toUpperCase();
-        if (!code) { alert("Введи код!"); return; }
-        if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт!"); return; }
-        let squad = getRandomSquad();
-        let { data, error } = await sb.from("battles").update({
-            player2_id: currentUser.id,
-            player2_username: currentUser.username,
-            player2_element: currentUser.element,
-            player2_squad: squad,
-            status: "active"
-        }).eq("battle_code", code).eq("status", "waiting").select().single();
-        if (error) { alert("Бой не найден!"); return; }
-        currentBattleId = data.id;
-        alert("Присоединился!");
-        startPvpListener();
+    async function login() {
+        let username = document.getElementById("loginUsername").value.trim();
+        let password = document.getElementById("loginPassword").value;
+        let hash = btoa(password);
+        let { data, error } = await sb.from("users").select("*").eq("username", username).eq("password_hash", hash).single();
+        if (error || !data) { alert("Неверно!"); return; }
+        currentUser = data;
+        saveSession();
+        updateUI();
+        renderCards();
+        document.getElementById("authScreen").classList.remove("active");
+        document.getElementById("mainScreen").classList.add("active");
+        document.getElementById("lobbyPanel").classList.add("active");
+        loadLobby();
+        if (lobbyInterval) clearInterval(lobbyInterval);
+        lobbyInterval = setInterval(loadLobby, 3000);
     }
 
-    function startPvpListener() {
-        if (pvpInterval) clearInterval(pvpInterval);
-        pvpInterval = setInterval(async () => {
-            if (!currentBattleId) return;
-            let { data } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-            if (data?.status === "finished") {
-                clearInterval(pvpInterval);
-                alert("Бой завершён!");
-                currentBattleId = null;
-            }
-        }, 2000);
-    }
-
+    // ===== СОБЫТИЯ =====
     document.getElementById("doRegisterBtn").onclick = register;
     document.getElementById("doLoginBtn").onclick = login;
     document.getElementById("logoutBtn").onclick = () => { localStorage.clear(); location.reload(); };
-    document.getElementById("toDeckBtn").onclick = () => { document.getElementById("deckPanel").classList.add("active"); document.getElementById("shopPanel").classList.remove("active"); document.getElementById("leaguePanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); renderCards(); };
-    document.getElementById("toShopBtn").onclick = () => { document.getElementById("shopPanel").classList.add("active"); document.getElementById("deckPanel").classList.remove("active"); document.getElementById("leaguePanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); };
+    document.getElementById("toDeckBtn").onclick = () => { document.getElementById("deckPanel").classList.add("active"); document.getElementById("lobbyPanel").classList.remove("active"); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("shopPanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); renderCards(); };
+    document.getElementById("toShopBtn").onclick = () => { document.getElementById("shopPanel").classList.add("active"); document.getElementById("deckPanel").classList.remove("active"); document.getElementById("lobbyPanel").classList.remove("active"); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); };
+    document.getElementById("toLobbyBtn").onclick = () => { document.getElementById("lobbyPanel").classList.add("active"); document.getElementById("deckPanel").classList.remove("active"); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("shopPanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); loadLobby(); };
     document.getElementById("leagueBtn").onclick = () => { 
         let league = leagues.find(l => currentUser.trophies >= l.min && currentUser.trophies < l.max) || leagues[5];
-        document.getElementById("leagueInfo").innerHTML = `<div style="background:#00000055; border-radius:24px; padding:20px;"><h3>${league.name}</h3><p>🎁 ${league.reward} монет</p></div>`;
+        document.getElementById("leagueInfo").innerHTML = `<div style="background:#00000055; border-radius:24px; padding:20px;"><h3>${league.name}</h3><p>🎁 Награда за лигу: ${league.reward} монет</p></div>`;
         document.getElementById("leaguePanel").classList.add("active");
+        document.getElementById("lobbyPanel").classList.remove("active");
+        document.getElementById("deckPanel").classList.remove("active");
+        document.getElementById("waitingPanel").classList.remove("active");
+        document.getElementById("shopPanel").classList.remove("active");
+        document.getElementById("battlePanel").classList.remove("active");
     };
     document.getElementById("botBattleBtn").onclick = startBotBattle;
-    document.getElementById("createBattleBtn").onclick = createBattle;
-    document.getElementById("findBattleBtn").onclick = () => { document.getElementById("searchPanel").style.display = "block"; };
-    document.getElementById("joinBattleBtn").onclick = joinBattle;
-    document.getElementById("attackBtn").onclick = attack;
+    document.getElementById("createLobbyBtn").onclick = createBattle;
+    document.getElementById("cancelBattleBtn").onclick = async () => {
+        if (currentBattleId) await cancelBattle(currentBattleId);
+        clearInterval(waitingInterval);
+        document.getElementById("waitingPanel").classList.remove("active");
+        document.getElementById("lobbyPanel").classList.add("active");
+        loadLobby();
+        currentBattleId = null;
+    };
+    document.getElementById("attackBtn").onclick = () => {
+        if (currentBattle) {
+            if (currentBattle.isBot) attackBot();
+            else attackPvp();
+        }
+    };
 
     loadSession();
+    if (currentUser) {
+        if (lobbyInterval) clearInterval(lobbyInterval);
+        lobbyInterval = setInterval(loadLobby, 3000);
+    }
 </script>
 </body>
 </html>
