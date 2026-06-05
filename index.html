@@ -378,19 +378,15 @@
     let waitingInterval = null;
     let battleInterval = null;
     let isResolving = false;
-    let opponentSelectedCards = null;
 
-    function getRandomCardByElement(element, excludeLegendaryMythic = false) {
+    // Простые функции
+    function getRandomCardByElement(element) {
         let filtered = allCards.filter(c => c.element === element);
-        if (excludeLegendaryMythic) filtered = filtered.filter(c => c.rarity !== "legendary" && c.rarity !== "mythic");
-        if (filtered.length === 0) filtered = allCards.filter(c => c.element === element);
         return { ...filtered[Math.floor(Math.random() * filtered.length)] };
     }
 
-    function getRandomCard(excludeLegendaryMythic = false) {
-        let filtered = [...allCards];
-        if (excludeLegendaryMythic) filtered = filtered.filter(c => c.rarity !== "legendary" && c.rarity !== "mythic");
-        return { ...filtered[Math.floor(Math.random() * filtered.length)] };
+    function getRandomCard() {
+        return { ...allCards[Math.floor(Math.random() * allCards.length)] };
     }
 
     function getStarterCards() {
@@ -423,16 +419,14 @@
         let attackerTotal = 0, defenderTotal = 0;
         let results = [];
         for (let i = 0; i < 4; i++) {
-            let attackCard = attackerCards[i];
-            let defendCard = defenderCards[i];
-            let attackDmg = computeDamage(attackCard, defenderElem);
-            let defendDmg = computeDamage(defendCard, attackerElem);
+            let attackDmg = computeDamage(attackerCards[i], defenderElem);
+            let defendDmg = computeDamage(defenderCards[i], attackerElem);
             attackerTotal += attackDmg;
             defenderTotal += defendDmg;
             results.push({
                 slot: i + 1,
-                attackerCard: attackCard.name, attackerDamage: attackDmg,
-                defenderCard: defendCard.name, defenderDamage: defendDmg,
+                attackerCard: attackerCards[i].name, attackerDamage: attackDmg,
+                defenderCard: defenderCards[i].name, defenderDamage: defendDmg,
                 winner: attackDmg > defendDmg ? "Атакующий" : defendDmg > attackDmg ? "Защитник" : "Ничья"
             });
         }
@@ -480,8 +474,7 @@
                 </div>
             `;
             document.body.appendChild(overlay);
-            const continueBtn = overlay.querySelector('#continueBtn');
-            continueBtn.onclick = () => {
+            overlay.querySelector('#continueBtn').onclick = () => {
                 overlay.remove();
                 resolve();
             };
@@ -524,7 +517,7 @@
 
     async function saveUser() {
         if (!currentUser) return;
-        const userData = {
+        await sb.from("game_users").upsert({
             id: currentUser.id,
             username: currentUser.username,
             password_hash: currentUser.password_hash,
@@ -534,19 +527,12 @@
             collection: currentUser.collection || [],
             deck: currentUser.deck || [],
             claimedRewards: currentUser.claimedRewards || []
-        };
-        console.log("Сохраняем пользователя:", userData);
-        const { error } = await sb.from("game_users").upsert(userData);
-        if (error) console.error("Ошибка сохранения:", error);
-        else console.log("Сохранено успешно!");
+        });
     }
 
     async function loadUser(userId) {
         let { data, error } = await sb.from("game_users").select("*").eq("id", userId).single();
-        if (error) {
-            console.error("Ошибка загрузки пользователя:", error);
-            return;
-        }
+        if (error) { console.error("Ошибка загрузки:", error); return; }
         if (data) {
             currentUser = data;
             if (!currentUser.collection) currentUser.collection = [];
@@ -607,18 +593,13 @@
         if (currentUser.currency < price) { alert("Мало монет!"); return; }
         currentUser.currency -= price;
         let newCards = [];
-        for (let i = 0; i < 3; i++) {
-            let card = getRandomCardByElement(element);
-            newCards.push(card);
-        }
+        for (let i = 0; i < 3; i++) newCards.push(getRandomCardByElement(element));
         for (let card of newCards) {
             let existing = currentUser.collection.find(c => c.name === card.name);
             if (existing) existing.count++;
             else currentUser.collection.push({ ...card, count: 1 });
         }
-        await saveUser();
-        renderCards();
-        updateUI();
+        await saveUser(); renderCards(); updateUI();
         let modal = document.getElementById("packModal");
         document.getElementById("packCardsList").innerHTML = newCards.map(c => `<div class="pack-card card ${c.rarity}"><b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.element}</div>`).join('');
         modal.classList.remove("hidden");
@@ -629,18 +610,13 @@
         if (currentUser.currency < 150) { alert("Мало монет!"); return; }
         currentUser.currency -= 150;
         let newCards = [];
-        for (let i = 0; i < 3; i++) {
-            let card = getRandomCard();
-            newCards.push(card);
-        }
+        for (let i = 0; i < 3; i++) newCards.push(getRandomCard());
         for (let card of newCards) {
             let existing = currentUser.collection.find(c => c.name === card.name);
             if (existing) existing.count++;
             else currentUser.collection.push({ ...card, count: 1 });
         }
-        await saveUser();
-        renderCards();
-        updateUI();
+        await saveUser(); renderCards(); updateUI();
         let modal = document.getElementById("packModal");
         document.getElementById("packCardsList").innerHTML = newCards.map(c => `<div class="pack-card card ${c.rarity}"><b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.element}</div>`).join('');
         modal.classList.remove("hidden");
@@ -677,7 +653,7 @@
         }).eq("id", battleId).select().single();
         if (error) { alert("Ошибка: " + error.message); return; }
         currentBattleId = data.id;
-        startBattleFromData(data);
+        startBattle(data.id);
     };
 
     window.cancelBattle = async (battleId) => {
@@ -704,86 +680,154 @@
             let { data: b } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
             if (b && b.status === "active" && b.player2_id) {
                 clearInterval(waitingInterval);
-                startBattleFromData(b);
+                startBattle(b.id);
             }
         }, 1000);
     }
 
-    async function startBattleFromData(data) {
-        currentBattleId = data.id;
+    // УПРОЩЁННАЯ БОЕВАЯ ЛОГИКА
+    async function startBattle(battleId) {
+        currentBattleId = battleId;
+        if (battleInterval) clearInterval(battleInterval);
+        battleInterval = setInterval(async () => {
+            await updateBattle();
+        }, 1000);
+        await updateBattle();
+    }
+
+    async function updateBattle() {
+        if (!currentBattleId) return;
+        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+        if (error || !data) return;
+        
+        currentBattle = data;
         let isPlayer1 = data.player1_id === currentUser.id;
-        opponentSelectedCards = null;
+        let isMyTurn = (data.current_turn === currentUser.id);
+        let round = data.round;
         
-        let freshSquad1 = getRandomSquad();
-        let freshSquad2 = getRandomSquad();
-        await sb.from("battles").update({
-            player1_squad: freshSquad1,
-            player2_squad: freshSquad2
-        }).eq("id", currentBattleId);
+        document.getElementById("scoreDisplay").innerHTML = `${data.player1_score}:${data.player2_score}`;
+        document.getElementById("roundNum").innerHTML = round;
+        document.getElementById("battleOpponentName").innerHTML = isPlayer1 ? data.player2_username : data.player1_username;
         
-        let { data: updatedData } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+        // Определяем, кто сейчас атакует (1 раунд - игрок1, 2 раунд - игрок2, 3 раунд - игрок1)
+        let isAttacker = (round === 1 || round === 3) ? isPlayer1 : !isPlayer1;
         
-        currentBattle = {
-            isBot: false, battleId: updatedData.id,
-            player1Id: updatedData.player1_id, player2Id: updatedData.player2_id,
-            player1Name: updatedData.player1_username, player2Name: updatedData.player2_username,
-            player1Element: updatedData.player1_element, player2Element: updatedData.player2_element,
-            player1Squad: updatedData.player1_squad, player2Squad: updatedData.player2_squad,
-            round: updatedData.round || 1, 
-            player1Score: updatedData.player1_score || 0, player2Score: updatedData.player2_score || 0,
-            currentTurn: updatedData.current_turn,
-            status: updatedData.status,
-            player1Selected: updatedData.player1_selected || null,
-            player2Selected: updatedData.player2_selected || null
-        };
-        
-        let isMyTurn = (currentBattle.currentTurn === currentUser.id);
-        let isBothPlayersExist = updatedData.player1_id && updatedData.player2_id;
-        
-        if (isBothPlayersExist && isMyTurn) {
-            let mySquad = isPlayer1 ? currentBattle.player1Squad : currentBattle.player2Squad;
-            currentSquad = mySquad || [];
+        // Атакующий выбирает карты
+        if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
+            currentSquad = isPlayer1 ? data.player1_squad : data.player2_squad;
             currentSelected = [];
             document.getElementById("readyBtn").style.display = "block";
             document.getElementById("readyBtn").disabled = false;
-            document.getElementById("readyBtn").innerHTML = "✅ АТАКОВАТЬ";
+            document.getElementById("readyBtn").innerHTML = "⚔️ АТАКОВАТЬ";
             document.getElementById("waitingOpponentMsg").style.display = "none";
             document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты для атаки!`;
-            showBattleScreen();
-        } else if (isBothPlayersExist) {
-            let opponentSelected = isPlayer1 ? currentBattle.player1Selected : currentBattle.player2Selected;
-            if (opponentSelected && opponentSelected.length === 4) {
-                opponentSelectedCards = opponentSelected;
-                document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
-                showOpponentCards(opponentSelected);
-                document.getElementById("readyBtn").style.display = "block";
-                document.getElementById("readyBtn").disabled = false;
-                document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
-                document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты для защиты!`;
-                currentSquad = isPlayer1 ? currentBattle.player1Squad : currentBattle.player2Squad;
-                currentSelected = [];
-            } else {
-                document.getElementById("readyBtn").style.display = "none";
-                document.getElementById("waitingOpponentMsg").style.display = "block";
-                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
-                document.getElementById("opponentCardsField").innerHTML = '';
-                document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Ожидание выбора карт атаки от соперника...`;
-                currentSquad = [];
-                currentSelected = [];
-            }
-            showBattleScreen();
-        } else {
-            document.getElementById("readyBtn").style.display = "none";
-            document.getElementById("waitingOpponentMsg").style.display = "block";
-            document.getElementById("battleLog").innerHTML = `Ожидание подключения второго игрока...`;
-            currentSquad = [];
-            showBattleScreen();
+            document.getElementById("opponentCardsField").innerHTML = '';
+            document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
+            showMyCards();
         }
-        startBattleInterval();
+        // Защитник видит карты атаки и выбирает защиту
+        else if (!isAttacker && !isMyTurn && data.player1_selected && data.player2_selected === null) {
+            // Показываем карты атакующего
+            let attackerCards = isPlayer1 ? data.player1_selected : data.player2_selected;
+            showOpponentCards(attackerCards);
+            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
+            
+            currentSquad = isPlayer1 ? data.player2_squad : data.player1_squad;
+            currentSelected = [];
+            document.getElementById("readyBtn").style.display = "block";
+            document.getElementById("readyBtn").disabled = false;
+            document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
+            document.getElementById("waitingOpponentMsg").style.display = "none";
+            document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
+            showMyCards();
+        }
+        // Если оба выбрали - считаем результат
+        else if (data.player1_selected && data.player2_selected && !data.player1_ready && !data.player2_ready) {
+            let isPlayer1Attacker = (round === 1 || round === 3);
+            let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
+            let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
+            let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
+            let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
+            let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
+            let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
+            let defenderName = isPlayer1Attacker ? data.player2_username : data.player1_username;
+            
+            let newScore1 = data.player1_score;
+            let newScore2 = data.player2_score;
+            if (result.roundWinner === "Атакующий") {
+                if (isPlayer1Attacker) newScore1++; else newScore2++;
+            } else if (result.roundWinner === "Защитник") {
+                if (!isPlayer1Attacker) newScore1++; else newScore2++;
+            }
+            
+            await sb.from("battles").update({
+                player1_score: newScore1,
+                player2_score: newScore2,
+                player1_ready: true,
+                player2_ready: true
+            }).eq("id", currentBattleId);
+            
+            await showRoundResult(attackerName, result.attackerTotal, defenderName, result.defenderTotal, result.results, result.roundWinner);
+            
+            if (round >= 3) {
+                let playerWon = (isPlayer1 && newScore1 > newScore2) || (!isPlayer1 && newScore2 > newScore1);
+                let league = getLeagueByTrophies(currentUser.trophies);
+                let lossPenalty = getLossPenalty(league.name);
+                let trophies = playerWon ? 10 : -lossPenalty;
+                let coins = playerWon ? 50 : 0;
+                currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
+                currentUser.currency = (currentUser.currency || 0) + coins;
+                await saveUser();
+                updateUI();
+                await checkAndClaimRewards();
+                alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
+                await sb.from("battles").update({ status: "finished" }).eq("id", currentBattleId);
+                document.getElementById("battlePanel").classList.remove("active");
+                document.getElementById("lobbyPanel").classList.add("active");
+                loadLobby();
+                clearInterval(battleInterval);
+                currentBattleId = null;
+                return;
+            }
+            
+            // Следующий раунд - очищаем выбранные карты, обновляем отряды
+            let newSquad1 = getRandomSquad();
+            let newSquad2 = getRandomSquad();
+            let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
+            await sb.from("battles").update({
+                player1_squad: newSquad1,
+                player2_squad: newSquad2,
+                round: round + 1,
+                current_turn: nextTurn,
+                player1_selected: null,
+                player2_selected: null,
+                player1_ready: false,
+                player2_ready: false
+            }).eq("id", currentBattleId);
+        }
+        
+        document.getElementById("battlePanel").classList.add("active");
+        document.getElementById("lobbyPanel").classList.remove("active");
+        document.getElementById("waitingPanel").classList.remove("active");
+        document.getElementById("deckPanel").classList.remove("active");
+        document.getElementById("shopPanel").classList.remove("active");
+        document.getElementById("leaguePanel").classList.remove("active");
     }
 
-    function toggleCardSelect(card) {
+    function showMyCards() {
+        let playerField = document.getElementById("playerCardsField");
+        if (currentSquad.length >= 4) {
+            playerField.innerHTML = currentSquad.map(card => `
+                <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick='toggleSelectCard(${JSON.stringify(card).replace(/"/g, '&quot;')})'>
+                    <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+                </div>
+            `).join('');
+            document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
+        }
+    }
+
+    function toggleSelectCard(cardData) {
+        let card = typeof cardData === 'string' ? JSON.parse(cardData) : cardData;
         let index = currentSelected.findIndex(c => c && c.name === card.name);
         if (index !== -1) {
             currentSelected.splice(index, 1);
@@ -793,143 +837,48 @@
             alert("Ты уже выбрал 4 карты!");
             return;
         }
-        showBattleScreen();
+        showMyCards();
     }
 
     async function submitReady() {
         if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
         
-        let isPlayer1 = currentBattle.player1Id === currentUser.id;
-        let isMyTurn = (currentBattle.currentTurn === currentUser.id);
-        let updateData = {};
+        let isPlayer1 = currentBattle.player1_id === currentUser.id;
+        let isAttacker = (currentBattle.round === 1 || currentBattle.round === 3) ? isPlayer1 : !isPlayer1;
         
-        if (isMyTurn) {
-            // АТАКУЮЩИЙ - сохраняем выбранные карты и ПЕРЕДАЁМ ХОД ЗАЩИТНИКУ
+        if (isAttacker) {
             if (isPlayer1) {
-                updateData.player1_selected = currentSelected;
-                updateData.current_turn = currentBattle.player2Id;
+                await sb.from("battles").update({
+                    player1_selected: currentSelected,
+                    current_turn: currentBattle.player2_id
+                }).eq("id", currentBattleId);
             } else {
-                updateData.player2_selected = currentSelected;
-                updateData.current_turn = currentBattle.player1Id;
+                await sb.from("battles").update({
+                    player2_selected: currentSelected,
+                    current_turn: currentBattle.player1_id
+                }).eq("id", currentBattleId);
             }
-            document.getElementById("battleLog").innerHTML = `Ожидание выбора карт защиты от соперника...`;
+            document.getElementById("battleLog").innerHTML = `Ожидание выбора защиты от соперника...`;
         } else {
-            // ЗАЩИТНИК - сохраняем выбранные карты и ставим оба ready=true, НО НЕ МЕНЯЕМ ХОД
             if (isPlayer1) {
-                updateData.player2_selected = currentSelected;
-                updateData.player1_ready = true;
-                updateData.player2_ready = true;
+                await sb.from("battles").update({
+                    player2_selected: currentSelected
+                }).eq("id", currentBattleId);
             } else {
-                updateData.player1_selected = currentSelected;
-                updateData.player1_ready = true;
-                updateData.player2_ready = true;
+                await sb.from("battles").update({
+                    player1_selected: currentSelected
+                }).eq("id", currentBattleId);
             }
             document.getElementById("battleLog").innerHTML = `Ожидание расчёта раунда...`;
         }
-        
-        const { error } = await sb.from("battles").update(updateData).eq("id", currentBattleId);
-        if (error) { alert("Ошибка: " + error.message); return; }
         
         document.getElementById("readyBtn").disabled = true;
         document.getElementById("readyBtn").innerHTML = "⏳ Ожидание...";
     }
 
-    async function checkBothReadyAndResolve() {
-        if (!currentBattleId || isResolving) return;
-        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-        if (error || !data) return;
-        
-        let bothReady = (data.player1_ready && data.player2_ready);
-        
-        if (bothReady && data.status === "active") {
-            isResolving = true;
-            
-            let p1Selected = data.player1_selected || [];
-            let p2Selected = data.player2_selected || [];
-            let isPlayer1Attacker = (data.current_turn === data.player1_id);
-            let attackerCards = isPlayer1Attacker ? p1Selected : p2Selected;
-            let defenderCards = isPlayer1Attacker ? p2Selected : p1Selected;
-            let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
-            let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
-            let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
-            let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
-            let defenderName = isPlayer1Attacker ? data.player2_username : data.player1_username;
-            
-            let newPlayer1Score = data.player1_score || 0;
-            let newPlayer2Score = data.player2_score || 0;
-            if (result.roundWinner === "Атакующий") {
-                if (isPlayer1Attacker) newPlayer1Score++; else newPlayer2Score++;
-            } else if (result.roundWinner === "Защитник") {
-                if (!isPlayer1Attacker) newPlayer1Score++; else newPlayer2Score++;
-            }
-            
-            await sb.from("battles").update({
-                player1_score: newPlayer1Score,
-                player2_score: newPlayer2Score
-            }).eq("id", currentBattleId);
-            
-            await showRoundResult(attackerName, result.attackerTotal, defenderName, result.defenderTotal, result.results, result.roundWinner);
-            
-            if (data.round >= 3) {
-                let finalData = (await sb.from("battles").select("*").eq("id", currentBattleId).single()).data;
-                let isPlayer1 = finalData.player1_id === currentUser.id;
-                let playerScore = isPlayer1 ? finalData.player1_score : finalData.player2_score;
-                let opponentScore = isPlayer1 ? finalData.player2_score : finalData.player1_score;
-                let playerWon = playerScore > opponentScore;
-                
-                let league = getLeagueByTrophies(currentUser.trophies);
-                let lossPenalty = getLossPenalty(league.name);
-                let trophies = playerWon ? 10 : -lossPenalty;
-                let coins = playerWon ? 50 : 0;
-                
-                currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
-                currentUser.currency = (currentUser.currency || 0) + coins;
-                
-                await sb.from("battles").update({
-                    status: "finished",
-                    winner_id: playerWon ? currentUser.id : null
-                }).eq("id", currentBattleId);
-                
-                await saveUser();
-                updateUI();
-                await checkAndClaimRewards();
-                
-                alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
-                
-                clearInterval(battleInterval);
-                document.getElementById("battlePanel").classList.remove("active");
-                document.getElementById("lobbyPanel").classList.add("active");
-                loadLobby();
-                currentBattle = null;
-                currentBattleId = null;
-                isResolving = false;
-                return;
-            }
-            
-            let nextTurn = data.player1_id;
-            let newSquad1 = getRandomSquad();
-            let newSquad2 = getRandomSquad();
-            await sb.from("battles").update({
-                player1_squad: newSquad1,
-                player2_squad: newSquad2,
-                current_turn: nextTurn,
-                round: data.round + 1,
-                player1_ready: false,
-                player2_ready: false,
-                player1_selected: null,
-                player2_selected: null
-            }).eq("id", currentBattleId);
-            
-            let { data: newData } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-            if (newData) startBattleFromData(newData);
-            isResolving = false;
-        }
-    }
-
     async function checkAndClaimRewards() {
         if (!currentUser) return;
         if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
-        
         for (let reward of trophyRewards) {
             if (currentUser.trophies >= reward.trophies && !currentUser.claimedRewards.includes(reward.trophies)) {
                 if (reward.type === "coins") {
@@ -951,91 +900,8 @@
                     alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получена мифическая карта: ${randomMythic.name}!`);
                 }
                 currentUser.claimedRewards.push(reward.trophies);
-                await saveUser();
-                renderCards();
-                updateUI();
+                await saveUser(); renderCards(); updateUI();
             }
-        }
-    }
-
-    function startBattleInterval() {
-        if (battleInterval) clearInterval(battleInterval);
-        battleInterval = setInterval(async () => {
-            if (!currentBattleId) return;
-            let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-            if (error || !data) return;
-            if (data.status === "finished") {
-                clearInterval(battleInterval);
-                return;
-            }
-            
-            let isPlayer1 = data.player1_id === currentUser.id;
-            let isMyTurn = (data.current_turn === currentUser.id);
-            
-            if (currentBattle) {
-                currentBattle.player1Selected = data.player1_selected;
-                currentBattle.player2Selected = data.player2_selected;
-            }
-            
-            document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
-            document.getElementById("roundNum").innerHTML = data.round;
-            
-            let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
-            
-            // Показываем карты атакующего защитнику (если атакующий уже выбрал)
-            if (opponentSelected && opponentSelected.length === 4 && !isMyTurn && !data.player1_ready && !data.player2_ready) {
-                let isNew = JSON.stringify(opponentSelected) !== JSON.stringify(opponentSelectedCards);
-                if (isNew) {
-                    opponentSelectedCards = opponentSelected;
-                    document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
-                    showOpponentCards(opponentSelected);
-                    document.getElementById("readyBtn").style.display = "block";
-                    document.getElementById("readyBtn").disabled = false;
-                    document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
-                    document.getElementById("battleLog").innerHTML = `Раунд ${data.round}. Выбери 4 карты для защиты!`;
-                    if (currentBattle) {
-                        currentSquad = isPlayer1 ? currentBattle.player1Squad : currentBattle.player2Squad;
-                        currentSelected = [];
-                        showBattleScreen();
-                    }
-                }
-            }
-            
-            let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
-            let roundChanged = currentBattle && currentBattle.round !== data.round;
-            if (currentTurnChanged || roundChanged || !currentBattle) {
-                startBattleFromData(data);
-            }
-            await checkBothReadyAndResolve();
-        }, 1000);
-    }
-
-    function showBattleScreen() {
-        document.getElementById("battlePanel").classList.add("active");
-        document.getElementById("lobbyPanel").classList.remove("active");
-        document.getElementById("waitingPanel").classList.remove("active");
-        document.getElementById("deckPanel").classList.remove("active");
-        document.getElementById("shopPanel").classList.remove("active");
-        document.getElementById("leaguePanel").classList.remove("active");
-        if (!currentBattle) return;
-        
-        let opponentName = currentBattle.player1Name === currentUser.username ? currentBattle.player2Name : currentBattle.player1Name;
-        document.getElementById("battleOpponentName").innerHTML = opponentName || "?";
-        document.getElementById("roundNum").innerHTML = currentBattle.round;
-        document.getElementById("scoreDisplay").innerHTML = `${currentBattle.player1Score}:${currentBattle.player2Score}`;
-        
-        let playerField = document.getElementById("playerCardsField");
-        if (currentSquad.length >= 4) {
-            playerField.innerHTML = currentSquad.map(card => `
-                <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick='toggleCardSelect(${JSON.stringify(card).replace(/"/g, '&quot;')})'>
-                    <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
-                </div>
-            `).join('');
-            document.getElementById("selectionInfo").style.display = "block";
-            document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
-        } else {
-            playerField.innerHTML = '<div style="padding: 40px;">⏳ Ожидание хода...</div>';
-            document.getElementById("selectionInfo").style.display = "none";
         }
     }
 
@@ -1044,9 +910,9 @@
         currentSquad = getRandomSquad();
         currentSelected = [];
         let oppSquad = [];
-        for (let i=0;i<6;i++) oppSquad.push(getRandomCard());
-        let oppElem = ["fire","water","earth","wind"][Math.floor(Math.random()*4)];
-        currentBattle = { isBot: true, opponentSquad: oppSquad, round: 1, playerScore: 0, opponentScore: 0, playerElement: currentUser.element, opponentElement: oppElem };
+        for (let i = 0; i < 6; i++) oppSquad.push(getRandomCard());
+        let oppElem = ["fire", "water", "earth", "wind"][Math.floor(Math.random() * 4)];
+        let botBattle = { squad: currentSquad, oppSquad: oppSquad, oppElem: oppElem, round: 1, playerScore: 0, oppScore: 0 };
         
         document.getElementById("battlePanel").classList.add("active");
         document.getElementById("lobbyPanel").classList.remove("active");
@@ -1054,13 +920,14 @@
         document.getElementById("deckPanel").classList.remove("active");
         document.getElementById("shopPanel").classList.remove("active");
         document.getElementById("leaguePanel").classList.remove("active");
-        
         document.getElementById("battleOpponentName").innerHTML = "🤖 Бот";
         document.getElementById("roundNum").innerHTML = "1";
         document.getElementById("scoreDisplay").innerHTML = "0:0";
         document.getElementById("battleLog").innerHTML = "Выбери 4 карты для атаки!";
-        
+        document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ БОТА (скрыты)";
+        document.getElementById("opponentCardsField").innerHTML = '';
         document.getElementById("readyBtn").style.display = "none";
+        
         if (!document.getElementById("attackBtn")) {
             let btn = document.createElement("button");
             btn.id = "attackBtn";
@@ -1069,70 +936,45 @@
             document.querySelector("#battlePanel .arena:last-child").appendChild(btn);
         }
         document.getElementById("attackBtn").style.display = "block";
-        document.getElementById("attackBtn").disabled = false;
-        document.getElementById("attackBtn").onclick = attackBot;
+        document.getElementById("attackBtn").onclick = async () => {
+            if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
+            let result = calculateRoundDamage(currentSelected, botBattle.oppSquad.slice(0, 4), currentUser.element, botBattle.oppElem);
+            await showRoundResult(currentUser.username, result.attackerTotal, "Бот", result.defenderTotal, result.results, result.roundWinner);
+            if (result.roundWinner === "Атакующий") botBattle.playerScore++;
+            else if (result.roundWinner === "Защитник") botBattle.oppScore++;
+            document.getElementById("scoreDisplay").innerHTML = `${botBattle.playerScore}:${botBattle.oppScore}`;
+            if (botBattle.round === 3) {
+                let won = botBattle.playerScore > botBattle.oppScore;
+                let coins = won ? 10 : 0;
+                currentUser.currency += coins;
+                await saveUser(); updateUI();
+                alert(`${won ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n💰 Монеты: +${coins}`);
+                document.getElementById("battlePanel").classList.remove("active");
+                document.getElementById("lobbyPanel").classList.add("active");
+                loadLobby();
+            } else {
+                botBattle.round++;
+                document.getElementById("roundNum").innerHTML = botBattle.round;
+                currentSquad = getRandomSquad();
+                currentSelected = [];
+                document.getElementById("battleLog").innerHTML = `Раунд ${botBattle.round}. Выбери 4 карты!`;
+                let playerField = document.getElementById("playerCardsField");
+                playerField.innerHTML = currentSquad.map(card => `
+                    <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick='toggleSelectCard(${JSON.stringify(card).replace(/"/g, '&quot;')})'>
+                        <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+                    </div>
+                `).join('');
+                document.getElementById("selectionInfo").innerHTML = `Выбрано: 0/4`;
+            }
+        };
         
-        updateBattleDisplayBot();
-    }
-
-    function updateBattleDisplayBot() {
         let playerField = document.getElementById("playerCardsField");
         playerField.innerHTML = currentSquad.map(card => `
-            <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick='toggleSelectBot(${JSON.stringify(card).replace(/"/g, '&quot;')})'>
+            <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick='toggleSelectCard(${JSON.stringify(card).replace(/"/g, '&quot;')})'>
                 <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
             </div>
         `).join('');
-        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
-        document.getElementById("opponentCardsField").innerHTML = '';
-    }
-
-    window.toggleSelectBot = (cardData) => {
-        let card = typeof cardData === 'string' ? JSON.parse(cardData) : cardData;
-        let index = currentSelected.findIndex(c => c && c.name === card.name);
-        if (index !== -1) {
-            currentSelected.splice(index, 1);
-        } else if (currentSelected.length < 4) {
-            currentSelected.push(card);
-        } else {
-            alert("Ты уже выбрал 4 карты!");
-            return;
-        }
-        updateBattleDisplayBot();
-    };
-
-    async function attackBot() {
-        if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
-        
-        let attacking = currentSelected;
-        let defending = currentBattle.opponentSquad.slice(0, 4);
-        let result = calculateRoundDamage(attacking, defending, currentUser.element, currentBattle.opponentElement);
-        
-        await showRoundResult(currentUser.username, result.attackerTotal, "Бот", result.defenderTotal, result.results, result.roundWinner);
-        
-        if (result.roundWinner === "Атакующий") currentBattle.playerScore++;
-        else if (result.roundWinner === "Защитник") currentBattle.opponentScore++;
-        
-        document.getElementById("scoreDisplay").innerHTML = `${currentBattle.playerScore}:${currentBattle.opponentScore}`;
-        
-        if (currentBattle.round === 3) {
-            let won = currentBattle.playerScore > currentBattle.opponentScore;
-            let coins = won ? 10 : 0;
-            currentUser.currency += coins;
-            await saveUser();
-            updateUI();
-            alert(`${won ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n💰 Монеты: +${coins}`);
-            document.getElementById("battlePanel").classList.remove("active");
-            document.getElementById("lobbyPanel").classList.add("active"); 
-            loadLobby();
-            currentBattle = null;
-        } else {
-            currentBattle.round++;
-            document.getElementById("roundNum").innerHTML = currentBattle.round;
-            currentSquad = getRandomSquad(); 
-            currentSelected = [];
-            updateBattleDisplayBot();
-            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты!`;
-        }
+        document.getElementById("selectionInfo").innerHTML = `Выбрано: 0/4`;
     }
 
     async function register() {
