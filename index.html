@@ -141,6 +141,31 @@
         .vs-text { font-size: 36px; margin: 20px; color: #ffaa44; }
         .winner-text { font-size: 32px; margin: 20px; color: #44ff44; }
         .waiting-msg { color: #ffaa44; margin-top: 10px; font-size: 14px; }
+        
+        .rewards-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .reward-card {
+            background: linear-gradient(145deg, #1f2a48, #0f1422);
+            border-radius: 20px;
+            padding: 12px;
+            width: 180px;
+            text-align: center;
+            transition: 0.2s;
+        }
+        .reward-card:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+        .reward-common { border: 1px solid #9ca3af; }
+        .reward-legendary { border: 1px solid #facc15; }
+        .reward-mythic { border: 1px solid #ff4444; }
+        .reward-icon { font-size: 32px; margin-bottom: 8px; }
+        .reward-trophies { font-size: 24px; font-weight: bold; }
+        .reward-label { font-size: 11px; color: #aaa; margin: 5px 0; }
+        .reward-divider { border-top: 1px solid #333; margin: 8px 0; }
+        .reward-prize { font-size: 16px; color: #44ff44; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -176,7 +201,7 @@
             <button id="toShopBtn">🛒 Магазин</button>
             <button id="toLobbyBtn">🎮 Лобби PvP</button>
             <button id="botBattleBtn">🤖 Бой с ботом (10💰)</button>
-            <button id="leagueBtn">🏆 Лига</button>
+            <button id="leagueBtn">🏆 Лига и награды</button>
         </div>
 
         <div id="lobbyPanel" class="screen">
@@ -222,7 +247,10 @@
             </div>
         </div>
 
-        <div id="leaguePanel" class="screen"><div id="leagueInfo"></div></div>
+        <div id="leaguePanel" class="screen">
+            <div id="leagueInfo"></div>
+            <div id="leagueRewardsContainer" class="rewards-grid"></div>
+        </div>
 
         <div id="battlePanel" class="screen">
             <div style="display: flex; justify-content: space-between;">
@@ -260,7 +288,6 @@
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
     const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-    // ВСЕ КАРТЫ
     const allCards = [
         { name: "Имолец", rarity: "common", damage: 10, element: "fire" },
         { name: "Пламенный клинок", rarity: "common", damage: 11, element: "fire" },
@@ -308,7 +335,6 @@
         { name: "👑 Легенда", min: 5000, max: 999999, reward: 5000, lossPenalty: 8 }
     ];
 
-    // Цепочка наград за кубки
     const trophyRewards = [
         { trophies: 10, reward: 50, type: "coins" },
         { trophies: 20, reward: 50, type: "coins" },
@@ -368,7 +394,7 @@
             const j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-        for (let i = 0; i < 6; i++) cards.push({ ...shuffled[i], count: 2 }); // по 2 экземпляра
+        for (let i = 0; i < 6; i++) cards.push({ ...shuffled[i], count: 1 });
         return cards;
     }
 
@@ -396,38 +422,6 @@
         return leagues.find(l => trophies >= l.min && trophies < l.max) || leagues[leagues.length - 1];
     }
 
-    async function checkAndClaimRewards() {
-        if (!currentUser) return;
-        if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
-        
-        for (let reward of trophyRewards) {
-            if (currentUser.trophies >= reward.trophies && !currentUser.claimedRewards.includes(reward.trophies)) {
-                if (reward.type === "coins") {
-                    currentUser.currency += reward.reward;
-                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получено ${reward.reward} монет!`);
-                } else if (reward.type === "legendary_card") {
-                    let legendaryCards = allCards.filter(c => c.rarity === "legendary");
-                    let randomLegendary = { ...legendaryCards[Math.floor(Math.random() * legendaryCards.length)], count: 1 };
-                    let existing = currentUser.collection.find(c => c.name === randomLegendary.name);
-                    if (existing) existing.count++;
-                    else currentUser.collection.push(randomLegendary);
-                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получена легендарная карта: ${randomLegendary.name}!`);
-                } else if (reward.type === "mythic_card") {
-                    let mythicCards = allCards.filter(c => c.rarity === "mythic");
-                    let randomMythic = { ...mythicCards[Math.floor(Math.random() * mythicCards.length)], count: 1 };
-                    let existing = currentUser.collection.find(c => c.name === randomMythic.name);
-                    if (existing) existing.count++;
-                    else currentUser.collection.push(randomMythic);
-                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получена мифическая карта: ${randomMythic.name}!`);
-                }
-                currentUser.claimedRewards.push(reward.trophies);
-                await saveUser();
-                renderCards();
-                updateUI();
-            }
-        }
-    }
-
     function showOpponentCards(cards) {
         let oppField = document.getElementById("opponentCardsField");
         oppField.innerHTML = cards.map(card => `
@@ -450,15 +444,53 @@
                     <div class="vs-text">${p1Name} vs ${p2Name}</div>
                     <div class="damage-number-big">${p1Damage} ⚔️ ${p2Damage}</div>
                     <div class="winner-text">${winnerName === "Ничья" ? "🤝 НИЧЬЯ" : winnerName + " побеждает в раунде!"}</div>
-                    <button id="continueBtn" style="margin-top: 20px;">Продолжить</button>
+                    <button id="continueBtn" style="margin-top: 20px; padding: 10px 30px; font-size: 18px;">Продолжить</button>
                 </div>
             `;
             document.body.appendChild(overlay);
-            document.getElementById('continueBtn').onclick = () => {
+            
+            const continueBtn = overlay.querySelector('#continueBtn');
+            continueBtn.onclick = () => {
                 overlay.remove();
                 resolve();
             };
         });
+    }
+
+    function showLeagueRewards() {
+        let container = document.getElementById("leagueRewardsContainer");
+        if (!container) return;
+        
+        let mid = Math.ceil(trophyRewards.length / 2);
+        let leftRewards = trophyRewards.slice(0, mid);
+        let rightRewards = trophyRewards.slice(mid);
+        
+        container.innerHTML = `
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; width: 100%;">
+                <div style="flex: 1; min-width: 250px; max-width: 350px;">
+                    ${leftRewards.map(r => `
+                        <div class="reward-card ${r.type === 'mythic_card' ? 'reward-mythic' : r.type === 'legendary_card' ? 'reward-legendary' : 'reward-common'}">
+                            <div class="reward-icon">${r.type === 'coins' ? '💰' : r.type === 'legendary_card' ? '✨' : '⭐'}</div>
+                            <div class="reward-trophies">${r.trophies}</div>
+                            <div class="reward-label">необходимо кубков</div>
+                            <div class="reward-divider"></div>
+                            <div class="reward-prize">${r.type === 'coins' ? '+' + r.reward + '💰' : r.type === 'legendary_card' ? '✨ Легендарная карта' : '⭐ Мифическая карта'}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="flex: 1; min-width: 250px; max-width: 350px;">
+                    ${rightRewards.map(r => `
+                        <div class="reward-card ${r.type === 'mythic_card' ? 'reward-mythic' : r.type === 'legendary_card' ? 'reward-legendary' : 'reward-common'}">
+                            <div class="reward-icon">${r.type === 'coins' ? '💰' : r.type === 'legendary_card' ? '✨' : '⭐'}</div>
+                            <div class="reward-trophies">${r.trophies}</div>
+                            <div class="reward-label">необходимо кубков</div>
+                            <div class="reward-divider"></div>
+                            <div class="reward-prize">${r.type === 'coins' ? '+' + r.reward + '💰' : r.type === 'legendary_card' ? '✨ Легендарная карта' : '⭐ Мифическая карта'}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
     }
 
     async function saveUser() {
@@ -771,16 +803,11 @@
             
             let newPlayer1Score = data.player1_score || 0;
             let newPlayer2Score = data.player2_score || 0;
-            let winnerName = "";
             
             if (p1Damage > p2Damage) {
                 newPlayer1Score++;
-                winnerName = data.player1_username;
             } else if (p2Damage > p1Damage) {
                 newPlayer2Score++;
-                winnerName = data.player2_username;
-            } else {
-                winnerName = "Ничья";
             }
             
             await sb.from("battles").update({
@@ -788,10 +815,51 @@
                 player2_score: newPlayer2Score
             }).eq("id", currentBattleId);
             
+            if (currentBattle) {
+                currentBattle.player1Score = newPlayer1Score;
+                currentBattle.player2Score = newPlayer2Score;
+            }
+            
+            let winnerName = "";
+            if (p1Damage > p2Damage) winnerName = data.player1_username;
+            else if (p2Damage > p1Damage) winnerName = data.player2_username;
+            else winnerName = "Ничья";
+            
             await showRoundResult(data.player1_username, p1Damage, data.player2_username, p2Damage, winnerName);
             
             if (data.round >= 3) {
-                await endBattle();
+                let finalData = (await sb.from("battles").select("*").eq("id", currentBattleId).single()).data;
+                let isPlayer1 = finalData.player1_id === currentUser.id;
+                let playerScore = isPlayer1 ? finalData.player1_score : finalData.player2_score;
+                let opponentScore = isPlayer1 ? finalData.player2_score : finalData.player1_score;
+                let playerWon = playerScore > opponentScore;
+                
+                let league = getLeagueByTrophies(currentUser.trophies);
+                let lossPenalty = getLossPenalty(league.name);
+                
+                let trophies = playerWon ? 10 : -lossPenalty;
+                let coins = playerWon ? 50 : 0;
+                
+                currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
+                currentUser.currency += coins;
+                
+                await sb.from("battles").update({
+                    status: "finished",
+                    winner_id: playerWon ? currentUser.id : (finalData.player1_id === currentUser.id ? finalData.player2_id : finalData.player1_id)
+                }).eq("id", currentBattleId);
+                
+                await saveUser();
+                updateUI();
+                await checkAndClaimRewards();
+                
+                alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
+                
+                clearInterval(battleInterval);
+                document.getElementById("battlePanel").classList.remove("active");
+                document.getElementById("lobbyPanel").classList.add("active");
+                loadLobby();
+                currentBattle = null;
+                currentBattleId = null;
                 isResolving = false;
                 return;
             }
@@ -817,31 +885,37 @@
             isResolving = false;
         }
     }
-    
-    async function endBattle() {
-        let playerWon = currentBattle.playerScore > currentBattle.opponentScore;
+
+    async function checkAndClaimRewards() {
+        if (!currentUser) return;
+        if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
         
-        let league = getLeagueByTrophies(currentUser.trophies);
-        let lossPenalty = getLossPenalty(league.name);
-        
-        let trophies = playerWon ? 10 : -lossPenalty;
-        let coins = playerWon ? 50 : 0;
-        
-        currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
-        currentUser.currency += coins;
-        
-        await saveUser();
-        updateUI();
-        await checkAndClaimRewards();
-        
-        alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
-        
-        clearInterval(battleInterval);
-        document.getElementById("battlePanel").classList.remove("active");
-        document.getElementById("lobbyPanel").classList.add("active");
-        loadLobby();
-        currentBattle = null;
-        currentBattleId = null;
+        for (let reward of trophyRewards) {
+            if (currentUser.trophies >= reward.trophies && !currentUser.claimedRewards.includes(reward.trophies)) {
+                if (reward.type === "coins") {
+                    currentUser.currency += reward.reward;
+                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получено ${reward.reward} монет!`);
+                } else if (reward.type === "legendary_card") {
+                    let legendaryCards = allCards.filter(c => c.rarity === "legendary");
+                    let randomLegendary = { ...legendaryCards[Math.floor(Math.random() * legendaryCards.length)], count: 1 };
+                    let existing = currentUser.collection.find(c => c.name === randomLegendary.name);
+                    if (existing) existing.count++;
+                    else currentUser.collection.push(randomLegendary);
+                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получена легендарная карта: ${randomLegendary.name}!`);
+                } else if (reward.type === "mythic_card") {
+                    let mythicCards = allCards.filter(c => c.rarity === "mythic");
+                    let randomMythic = { ...mythicCards[Math.floor(Math.random() * mythicCards.length)], count: 1 };
+                    let existing = currentUser.collection.find(c => c.name === randomMythic.name);
+                    if (existing) existing.count++;
+                    else currentUser.collection.push(randomMythic);
+                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получена мифическая карта: ${randomMythic.name}!`);
+                }
+                currentUser.claimedRewards.push(reward.trophies);
+                await saveUser();
+                renderCards();
+                updateUI();
+            }
+        }
     }
 
     function startBattleInterval() {
@@ -859,20 +933,30 @@
             let isPlayer1 = data.player1_id === currentUser.id;
             let isMyTurn = (data.current_turn === currentUser.id);
             
+            if (currentBattle) {
+                currentBattle.player1Selected = data.player1_selected;
+                currentBattle.player2Selected = data.player2_selected;
+            }
+            
             document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
             document.getElementById("roundNum").innerHTML = data.round;
             
             let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
             
-            if (opponentSelected && opponentSelected.length > 0 && !isMyTurn) {
+            if (opponentSelected && opponentSelected.length > 0) {
                 document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                 showOpponentCards(opponentSelected);
-            } else if (!isMyTurn) {
+            } else if (!isMyTurn && !opponentSelected) {
                 document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
                 document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
             } else if (isMyTurn) {
-                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+                if (opponentSelected && opponentSelected.length > 0) {
+                    document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
+                    showOpponentCards(opponentSelected);
+                } else {
+                    document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
+                    document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+                }
             }
             
             let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
@@ -1019,7 +1103,7 @@
         
         if (currentBattle.round === 3) {
             let won = currentBattle.playerScore > currentBattle.opponentScore;
-            let coins = won ? 10 : 0; // Бот даёт 10 монет за победу, 0 за поражение
+            let coins = won ? 10 : 0;
             currentUser.currency += coins;
             await saveUser();
             updateUI();
@@ -1109,10 +1193,9 @@
                 <p>⚔️ Поражение в PvP: -${league.lossPenalty} кубков</p>
                 <h4>Все лиги:</h4>
                 ${leagues.map(l => `<div>${l.name} (${l.min}–${l.max === 999999 ? "∞" : l.max}) → 🎁 ${l.reward}💰 | ⚔️ -${l.lossPenalty}</div>`).join('')}
-                <h4 style="margin-top:20px;">🏆 Награды за кубки:</h4>
-                ${trophyRewards.map(r => `<div>🏆 ${r.trophies} → ${r.type === "coins" ? r.reward + "💰" : r.type === "legendary_card" ? "✨ Легендарная карта" : "⭐ Мифическая карта"}</div>`).join('')}
             </div>
         `;
+        showLeagueRewards();
         document.getElementById("leaguePanel").classList.add("active"); 
         document.getElementById("lobbyPanel").classList.remove("active"); 
         document.getElementById("deckPanel").classList.remove("active"); 
