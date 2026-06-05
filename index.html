@@ -316,9 +316,11 @@
     let battleInterval = null;
     let isResolving = false;
 
-    function getRandomCard() {
-        return { ...allCards[Math.floor(Math.random() * allCards.length)] };
-    }
+function getRandomCardByElement(element) {
+    let filtered = allCards.filter(c => c.element === element);
+    if (filtered.length === 0) filtered = allCards;
+    return { ...filtered[Math.floor(Math.random() * filtered.length)] };
+}
 
     function getStarterCards() {
         let cards = [];
@@ -440,27 +442,27 @@
         renderCards();
         saveUser();
     };
-    window.buyPack = async (element) => {
-        if (currentUser.currency < 100) { alert("Мало монет!"); return; }
-        currentUser.currency -= 100;
-        let newCards = [];
-        for (let i = 0; i < 3; i++) {
-            let card = getRandomCard();
-            newCards.push(card);
-        }
-        for (let card of newCards) {
-            let existing = currentUser.collection.find(c => c.name === card.name);
-            if (existing) existing.count++;
-            else currentUser.collection.push({ ...card, count: 1 });
-        }
-        await saveUser();
-        renderCards();
-        updateUI();
-        let modal = document.getElementById("packModal");
-        document.getElementById("packCardsList").innerHTML = newCards.map(c => `<div class="pack-card card ${c.rarity}"><b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.element}</div>`).join('');
-        modal.classList.remove("hidden");
-        document.getElementById("closePackBtn").onclick = () => modal.classList.add("hidden");
-    };
+   window.buyPack = async (element) => {
+    if (currentUser.currency < 100) { alert("Мало монет!"); return; }
+    currentUser.currency -= 100;
+    let newCards = [];
+    for (let i = 0; i < 3; i++) {
+        let card = getRandomCardByElement(element);
+        newCards.push(card);
+    }
+    for (let card of newCards) {
+        let existing = currentUser.collection.find(c => c.name === card.name);
+        if (existing) existing.count++;
+        else currentUser.collection.push({ ...card, count: 1 });
+    }
+    await saveUser();
+    renderCards();
+    updateUI();
+    let modal = document.getElementById("packModal");
+    document.getElementById("packCardsList").innerHTML = newCards.map(c => `<div class="pack-card card ${c.rarity}"><b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.element}</div>`).join('');
+    modal.classList.remove("hidden");
+    document.getElementById("closePackBtn").onclick = () => modal.classList.add("hidden");
+};
 
     async function loadLobby() {
         let { data } = await sb.from("battles").select("*").in("status", ["waiting", "active"]).order("created_at", { ascending: false });
