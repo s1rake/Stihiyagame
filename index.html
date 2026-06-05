@@ -739,35 +739,36 @@ async function updateBattle() {
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
         showMyCards();
     }
-    // СЛУЧАЙ 2: Защитник выбирает защиту (атакующий уже выбрал)
-    else if (!isAttacker && isMyTurn && data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) {
-        console.log("Режим: ЗАЩИТНИК выбирает защиту");
-        
-        // Показываем карты атакующего (с проверкой на null)
-        let attackerCards = isPlayer1 ? data.player1_selected : data.player2_selected;
-        console.log("Карты атакующего:", attackerCards);
-        
-        if (attackerCards && attackerCards.length === 4) {
-            showOpponentCards(attackerCards);
-            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
-        } else {
-            document.getElementById("opponentLabel").innerHTML = "❓ ОЖИДАНИЕ КАРТ АТАКИ";
-            document.getElementById("opponentCardsField").innerHTML = '';
-        }
-        
-        // Загружаем карты защитника
-        if (currentSquad.length === 0) {
-            currentSquad = isPlayer1 ? [...(data.player2_squad || [])] : [...(data.player1_squad || [])];
-            currentSelected = [];
-            console.log("Загружены карты защитника:", currentSquad);
-        }
-        document.getElementById("readyBtn").style.display = "block";
-        document.getElementById("readyBtn").disabled = false;
-        document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
-        document.getElementById("waitingOpponentMsg").style.display = "none";
-        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
-        showMyCards();
+// СЛУЧАЙ 2: Защитник выбирает защиту (атакующий уже выбрал)
+else if (!isAttacker && isMyTurn && data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) {
+    console.log("Режим: ЗАЩИТНИК выбирает защиту");
+    
+    // Показываем карты атакующего (это карты ДРУГОГО игрока)
+    let attackerCards = isPlayer1 ? data.player2_selected : data.player1_selected;
+    console.log("Карты атакующего:", attackerCards);
+    
+    if (attackerCards && attackerCards.length === 4) {
+        showOpponentCards(attackerCards);
+        document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
+    } else {
+        console.log("ВНИМАНИЕ: карты атакующего не найдены!", attackerCards);
+        document.getElementById("opponentLabel").innerHTML = "❓ ОЖИДАНИЕ КАРТ АТАКИ";
+        document.getElementById("opponentCardsField").innerHTML = '';
     }
+    
+    // Загружаем карты защитника (свои)
+    if (currentSquad.length === 0) {
+        currentSquad = isPlayer1 ? [...(data.player2_squad || [])] : [...(data.player1_squad || [])];
+        currentSelected = [];
+        console.log("Загружены карты защитника:", currentSquad);
+    }
+    document.getElementById("readyBtn").style.display = "block";
+    document.getElementById("readyBtn").disabled = false;
+    document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
+    document.getElementById("waitingOpponentMsg").style.display = "none";
+    document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
+    showMyCards();
+}
     // СЛУЧАЙ 3: Оба выбрали - считаем результат
     else if (data.player1_selected && data.player2_selected && !data.player1_ready && !data.player2_ready) {
         console.log("Режим: РАСЧЁТ РАУНДА");
