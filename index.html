@@ -77,7 +77,7 @@
         }
         .card-slot.selected { border: 2px solid gold; box-shadow: 0 0 10px gold; transform: scale(1.02); }
         .enemy-hidden { filter: blur(4px); background: #2a2f4b; display: flex; align-items: center; justify-content: center; }
-        .enemy-visible { background: #3a2f6b; }
+        .enemy-visible { background: linear-gradient(145deg, #3a2f6b, #2a1f4b); border: 1px solid #aa88ff; }
         .battle-log { background: #00000066; margin: 16px; padding: 12px; border-radius: 24px; font-size: 14px; max-height: 200px; overflow-y: auto; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000000cc; backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .modal-card { background: linear-gradient(145deg, #1f2a48, #0f1422); border-radius: 48px; padding: 30px; max-width: 500px; width: 90%; text-align: center; animation: bounce 0.3s ease; }
@@ -258,7 +258,6 @@
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
     const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-    // ВСЕ КАРТЫ (разных стихий)
     const allCards = [
         { name: "Имолец", rarity: "common", damage: 10, element: "fire" },
         { name: "Пламенный клинок", rarity: "common", damage: 11, element: "fire" },
@@ -316,11 +315,15 @@
     let battleInterval = null;
     let isResolving = false;
 
-function getRandomCardByElement(element) {
-    let filtered = allCards.filter(c => c.element === element);
-    if (filtered.length === 0) filtered = allCards;
-    return { ...filtered[Math.floor(Math.random() * filtered.length)] };
-}
+    function getRandomCardByElement(element) {
+        let filtered = allCards.filter(c => c.element === element);
+        if (filtered.length === 0) filtered = allCards;
+        return { ...filtered[Math.floor(Math.random() * filtered.length)] };
+    }
+
+    function getRandomCard() {
+        return { ...allCards[Math.floor(Math.random() * allCards.length)] };
+    }
 
     function getStarterCards() {
         let cards = [];
@@ -348,7 +351,19 @@ function getRandomCardByElement(element) {
         return Math.floor(attacker.damage * mult);
     }
 
-    function showRoundResult(p1Name, p1Cards, p1Damage, p2Name, p2Cards, p2Damage, winnerName) {
+    function showOpponentCards(cards) {
+        let oppField = document.getElementById("opponentCardsField");
+        oppField.innerHTML = cards.map(card => `
+            <div class="card-slot ${card.rarity} enemy-visible">
+                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+            </div>
+        `).join('');
+        for (let i = cards.length; i < 4; i++) {
+            oppField.innerHTML += `<div class="card-slot enemy-hidden">❓❓❓</div>`;
+        }
+    }
+
+    function showRoundResult(p1Name, p1Damage, p2Name, p2Damage, winnerName) {
         return new Promise((resolve) => {
             const overlay = document.createElement('div');
             overlay.className = 'battle-overlay';
@@ -442,27 +457,27 @@ function getRandomCardByElement(element) {
         renderCards();
         saveUser();
     };
-   window.buyPack = async (element) => {
-    if (currentUser.currency < 100) { alert("Мало монет!"); return; }
-    currentUser.currency -= 100;
-    let newCards = [];
-    for (let i = 0; i < 3; i++) {
-        let card = getRandomCardByElement(element);
-        newCards.push(card);
-    }
-    for (let card of newCards) {
-        let existing = currentUser.collection.find(c => c.name === card.name);
-        if (existing) existing.count++;
-        else currentUser.collection.push({ ...card, count: 1 });
-    }
-    await saveUser();
-    renderCards();
-    updateUI();
-    let modal = document.getElementById("packModal");
-    document.getElementById("packCardsList").innerHTML = newCards.map(c => `<div class="pack-card card ${c.rarity}"><b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.element}</div>`).join('');
-    modal.classList.remove("hidden");
-    document.getElementById("closePackBtn").onclick = () => modal.classList.add("hidden");
-};
+    window.buyPack = async (element) => {
+        if (currentUser.currency < 100) { alert("Мало монет!"); return; }
+        currentUser.currency -= 100;
+        let newCards = [];
+        for (let i = 0; i < 3; i++) {
+            let card = getRandomCardByElement(element);
+            newCards.push(card);
+        }
+        for (let card of newCards) {
+            let existing = currentUser.collection.find(c => c.name === card.name);
+            if (existing) existing.count++;
+            else currentUser.collection.push({ ...card, count: 1 });
+        }
+        await saveUser();
+        renderCards();
+        updateUI();
+        let modal = document.getElementById("packModal");
+        document.getElementById("packCardsList").innerHTML = newCards.map(c => `<div class="pack-card card ${c.rarity}"><b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.element}</div>`).join('');
+        modal.classList.remove("hidden");
+        document.getElementById("closePackBtn").onclick = () => modal.classList.add("hidden");
+    };
 
     async function loadLobby() {
         let { data } = await sb.from("battles").select("*").in("status", ["waiting", "active"]).order("created_at", { ascending: false });
@@ -526,37 +541,39 @@ function getRandomCardByElement(element) {
         }, 1000);
     }
 
-   function startBattleFromData(data) {
-    currentBattleId = data.id;
-    let isPlayer1 = data.player1_id === currentUser.id;
-    
-    // Обновляем отряды случайными картами из колоды
-    let freshSquad1 = getRandomSquad();
-    let freshSquad2 = getRandomSquad();
-    
-    // Сохраняем новые отряды в БД
-    await sb.from("battles").update({
-        player1_squad: freshSquad1,
-        player2_squad: freshSquad2
-    }).eq("id", currentBattleId);
+    async function startBattleFromData(data) {
+        currentBattleId = data.id;
+        let isPlayer1 = data.player1_id === currentUser.id;
+        
+        // Обновляем отряды свежими картами из колоды
+        let freshSquad1 = getRandomSquad();
+        let freshSquad2 = getRandomSquad();
+        
+        await sb.from("battles").update({
+            player1_squad: freshSquad1,
+            player2_squad: freshSquad2
+        }).eq("id", currentBattleId);
+        
+        let { data: updatedData } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+        
         currentBattle = {
-            isBot: false, battleId: data.id,
-            player1Id: data.player1_id, player2Id: data.player2_id,
-            player1Name: data.player1_username, player2Name: data.player2_username,
-            player1Squad: data.player1_squad, player2Squad: data.player2_squad,
-            round: data.round || 1, 
-            player1Score: data.player1_score || 0, player2Score: data.player2_score || 0,
-            currentTurn: data.current_turn,
-            status: data.status,
-            player1Selected: data.player1_selected || null,
-            player2Selected: data.player2_selected || null
+            isBot: false, battleId: updatedData.id,
+            player1Id: updatedData.player1_id, player2Id: updatedData.player2_id,
+            player1Name: updatedData.player1_username, player2Name: updatedData.player2_username,
+            player1Squad: updatedData.player1_squad, player2Squad: updatedData.player2_squad,
+            round: updatedData.round || 1, 
+            player1Score: updatedData.player1_score || 0, player2Score: updatedData.player2_score || 0,
+            currentTurn: updatedData.current_turn,
+            status: updatedData.status,
+            player1Selected: updatedData.player1_selected || null,
+            player2Selected: updatedData.player2_selected || null
         };
         
         let isMyTurn = (currentBattle.currentTurn === currentUser.id);
-        let isBothPlayersExist = data.player1_id && data.player2_id;
+        let isBothPlayersExist = updatedData.player1_id && updatedData.player2_id;
         
         if (isBothPlayersExist && isMyTurn) {
-            let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+            let mySquad = isPlayer1 ? currentBattle.player1Squad : currentBattle.player2Squad;
             currentSquad = mySquad || [];
             currentSelected = [];
             document.getElementById("readyBtn").style.display = "block";
@@ -566,18 +583,17 @@ function getRandomCardByElement(element) {
             document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
             document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты и нажми "ГОТОВО"!`;
         } else if (isBothPlayersExist) {
-            // Ход противника — показываем его выбранные карты, если они есть
-            let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
+            let opponentSelected = isPlayer1 ? currentBattle.player2Selected : currentBattle.player1Selected;
             if (opponentSelected && opponentSelected.length > 0) {
                 document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                 showOpponentCards(opponentSelected);
             } else {
-                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание выбора)";
+                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
                 document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
             }
             document.getElementById("readyBtn").style.display = "none";
             document.getElementById("waitingOpponentMsg").style.display = "block";
-            let turnPlayer = (currentBattle.currentTurn === data.player1_id) ? data.player1_username : data.player2_username;
+            let turnPlayer = (currentBattle.currentTurn === updatedData.player1_id) ? updatedData.player1_username : updatedData.player2_username;
             document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Ожидание хода ${turnPlayer}...`;
             currentSquad = [];
         } else {
@@ -586,35 +602,9 @@ function getRandomCardByElement(element) {
             document.getElementById("battleLog").innerHTML = `Ожидание подключения второго игрока...`;
             currentSquad = [];
         }
+        
         showBattleScreen();
         startBattleInterval();
-
-       let newSquad1 = getRandomSquad();
-let newSquad2 = getRandomSquad();
-
-await sb.from("battles").update({
-    player1_squad: newSquad1,
-    player2_squad: newSquad2,
-    current_turn: data.player1_id,
-    round: data.round + 1,
-    player1_ready: false,
-    player2_ready: false,
-    player1_selected: null,
-    player2_selected: null
-}).eq("id", currentBattleId);
-    }
-
-    function showOpponentCards(cards) {
-        let oppField = document.getElementById("opponentCardsField");
-        oppField.innerHTML = cards.slice(0, 4).map(card => `
-            <div class="card-slot ${card.rarity} enemy-visible">
-                <b>${card.name}</b><br>⚔️ ${card.damage}
-            </div>
-        `).join('');
-        // Остальные слоты заполняем пустыми
-        for (let i = cards.length; i < 4; i++) {
-            oppField.innerHTML += `<div class="card-slot enemy-hidden">❓❓❓</div>`;
-        }
     }
 
     async function submitReady() {
@@ -647,7 +637,6 @@ await sb.from("battles").update({
         document.getElementById("readyBtn").innerHTML = "⏳ Ожидание соперника...";
         document.getElementById("battleLog").innerHTML = `Ожидание выбора карт от соперника...`;
         
-        // Передаём ход другому игроку
         let nextTurn = isPlayer1 ? currentBattle.player2Id : currentBattle.player1Id;
         await sb.from("battles").update({
             current_turn: nextTurn
@@ -670,13 +659,13 @@ await sb.from("battles").update({
             let p2Selected = data.player2_selected || [];
             
             let p1Damage = 0, p2Damage = 0;
+            let defenderElem1 = p2Selected[0]?.element || "fire";
+            let defenderElem2 = p1Selected[0]?.element || "fire";
             for (let card of p1Selected) {
-                let defenderElem = p2Selected[0]?.element || "fire";
-                p1Damage += computeDamage(card, defenderElem);
+                p1Damage += computeDamage(card, defenderElem1);
             }
             for (let card of p2Selected) {
-                let defenderElem = p1Selected[0]?.element || "fire";
-                p2Damage += computeDamage(card, defenderElem);
+                p2Damage += computeDamage(card, defenderElem2);
             }
             
             let newPlayer1Score = data.player1_score || 0;
@@ -698,7 +687,7 @@ await sb.from("battles").update({
                 player2_score: newPlayer2Score
             }).eq("id", currentBattleId);
             
-            await showRoundResult(data.player1_username, p1Selected, p1Damage, data.player2_username, p2Selected, p2Damage, winnerName);
+            await showRoundResult(data.player1_username, p1Damage, data.player2_username, p2Damage, winnerName);
             
             if (data.round >= 3) {
                 let finalData = (await sb.from("battles").select("*").eq("id", currentBattleId).single()).data;
@@ -729,8 +718,13 @@ await sb.from("battles").update({
                 return;
             }
             
-            // Передаём ход первому игроку для следующего раунда
+            // Обновляем отряды для следующего раунда
+            let newSquad1 = getRandomSquad();
+            let newSquad2 = getRandomSquad();
+            
             await sb.from("battles").update({
+                player1_squad: newSquad1,
+                player2_squad: newSquad2,
                 current_turn: data.player1_id,
                 round: data.round + 1,
                 player1_ready: false,
@@ -747,61 +741,47 @@ await sb.from("battles").update({
         }
     }
 
-function refreshPlayerSquad(isPlayer1) {
-    if (isPlayer1) {
-        currentBattle.player1Squad = getRandomSquad();
-    } else {
-        currentBattle.player2Squad = getRandomSquad();
+    function startBattleInterval() {
+        if (battleInterval) clearInterval(battleInterval);
+        battleInterval = setInterval(async () => {
+            if (!currentBattleId) return;
+            let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+            if (error || !data) return;
+            
+            if (data.status === "finished") {
+                clearInterval(battleInterval);
+                return;
+            }
+            
+            let isPlayer1 = data.player1_id === currentUser.id;
+            let isMyTurn = (data.current_turn === currentUser.id);
+            
+            document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
+            document.getElementById("roundNum").innerHTML = data.round;
+            
+            let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
+            
+            if (opponentSelected && opponentSelected.length > 0 && !isMyTurn) {
+                document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
+                showOpponentCards(opponentSelected);
+            } else if (!isMyTurn) {
+                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
+                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+            } else if (isMyTurn) {
+                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
+                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+            }
+            
+            let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
+            let roundChanged = currentBattle && currentBattle.round !== data.round;
+            if (currentTurnChanged || roundChanged || !currentBattle) {
+                startBattleFromData(data);
+            }
+            
+            await checkBothReadyAndResolve();
+        }, 1000);
     }
-}
-    
-// В функции startBattleInterval добавим проверку на появление выбранных карт противника
-function startBattleInterval() {
-    if (battleInterval) clearInterval(battleInterval);
-    battleInterval = setInterval(async () => {
-        if (!currentBattleId) return;
-        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-        if (error || !data) return;
-        
-        if (data.status === "finished") {
-            clearInterval(battleInterval);
-            return;
-        }
-        
-        let isPlayer1 = data.player1_id === currentUser.id;
-        let isMyTurn = (data.current_turn === currentUser.id);
-        
-        // Обновляем счёт и раунд
-        document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
-        document.getElementById("roundNum").innerHTML = data.round;
-        
-        // ===== ПОКАЗЫВАЕМ КАРТЫ ПРОТИВНИКА, ЕСЛИ ОН ИХ УЖЕ ВЫБРАЛ =====
-        let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
-        
-        if (opponentSelected && opponentSelected.length > 0) {
-            // Противник уже выбрал карты — показываем их
-            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА";
-            showOpponentCards(opponentSelected);
-        } else if (!isMyTurn) {
-            // Противник ещё не выбрал
-            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
-            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
-        } else if (isMyTurn) {
-            // Мой ход — карты противника скрыты
-            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
-        }
-        
-        // Если ход поменялся — перезагружаем UI
-        let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
-        let roundChanged = currentBattle && currentBattle.round !== data.round;
-        if (currentTurnChanged || roundChanged || !currentBattle) {
-            startBattleFromData(data);
-        }
-        
-        await checkBothReadyAndResolve();
-    }, 1000);
-}
+
     function showBattleScreen() {
         document.getElementById("battlePanel").classList.add("active");
         document.getElementById("lobbyPanel").classList.remove("active");
@@ -914,19 +894,19 @@ function startBattleInterval() {
         
         let attacking = currentSelected.map(i => currentSquad[i]);
         let playerTotal = 0;
+        let defenderElem = currentBattle.opponentSquad[0]?.element || "fire";
         for (let card of attacking) {
-            let defenderElem = currentBattle.opponentSquad[0]?.element || "fire";
             playerTotal += computeDamage(card, defenderElem);
         }
         
         let defending = currentBattle.opponentSquad.slice(0, 4);
         let opponentTotal = 0;
+        let defenderElem2 = attacking[0]?.element || "fire";
         for (let card of defending) {
-            let defenderElem = attacking[0]?.element || "fire";
-            opponentTotal += computeDamage(card, defenderElem);
+            opponentTotal += computeDamage(card, defenderElem2);
         }
         
-        await showRoundResult(currentUser.username, attacking, playerTotal, "Бот", defending, opponentTotal, 
+        await showRoundResult(currentUser.username, playerTotal, "Бот", opponentTotal, 
             playerTotal > opponentTotal ? currentUser.username : playerTotal < opponentTotal ? "Бот" : "Ничья");
         
         if (playerTotal > opponentTotal) { currentBattle.playerScore++; }
