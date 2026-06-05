@@ -369,6 +369,7 @@
     let waitingInterval = null;
     let battleInterval = null;
     let isResolving = false;
+    let opponentSelectedCards = null; // Храним карты противника
 
     function getRandomCardByElement(element, excludeLegendaryMythic = false) {
         let filtered = allCards.filter(c => c.element === element);
@@ -679,6 +680,9 @@
         currentBattleId = data.id;
         let isPlayer1 = data.player1_id === currentUser.id;
         
+        // Сбрасываем сохранённые карты противника
+        opponentSelectedCards = null;
+        
         let freshSquad1 = getRandomSquad();
         let freshSquad2 = getRandomSquad();
         
@@ -718,6 +722,7 @@
         } else if (isBothPlayersExist) {
             let opponentSelected = isPlayer1 ? currentBattle.player2Selected : currentBattle.player1Selected;
             if (opponentSelected && opponentSelected.length > 0) {
+                opponentSelectedCards = opponentSelected;
                 document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                 showOpponentCards(opponentSelected);
             } else {
@@ -943,20 +948,18 @@
             
             let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
             
+            // Если противник выбрал карты и они изменились - обновляем отображение
             if (opponentSelected && opponentSelected.length > 0) {
-                document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
-                showOpponentCards(opponentSelected);
-            } else if (!isMyTurn && !opponentSelected) {
-                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
-                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
-            } else if (isMyTurn) {
-                if (opponentSelected && opponentSelected.length > 0) {
+                let isNew = JSON.stringify(opponentSelected) !== JSON.stringify(opponentSelectedCards);
+                if (isNew) {
+                    opponentSelectedCards = opponentSelected;
                     document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                     showOpponentCards(opponentSelected);
-                } else {
-                    document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-                    document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
                 }
+            } else if (!isMyTurn && !opponentSelected) {
+                opponentSelectedCards = null;
+                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
+                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
             }
             
             let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
