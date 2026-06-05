@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Стихии Битва</title>
+    <title>Стихии Битва — Supabase</title>
     <style>
         * {
             margin: 0;
@@ -214,7 +214,7 @@
             display: none;
         }
 
-        .start-screen {
+        .auth-container {
             max-width: 400px;
             margin: 80px auto;
             background: #0f142bbb;
@@ -223,7 +223,7 @@
             text-align: center;
         }
 
-        .start-screen input, .start-screen select {
+        .auth-container input, .auth-container select {
             width: 100%;
             margin: 12px 0;
             padding: 12px;
@@ -253,22 +253,27 @@
         .pack.earth { border: 2px solid #44ff44; }
         .pack.wind { border: 2px solid #ffaa44; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="container">
-    <!-- СТАРТОВЫЙ ЭКРАН -->
-    <div id="startScreen" class="screen active">
-        <div class="start-screen">
+    <!-- АВТОРИЗАЦИЯ -->
+    <div id="authScreen" class="screen active">
+        <div class="auth-container">
             <h1>✨ Стихии Битва ✨</h1>
-            <input type="text" id="playerName" placeholder="Имя игрока" value="Воин">
-            <select id="playerElement">
+            <input type="text" id="loginUsername" placeholder="Имя пользователя">
+            <input type="password" id="loginPassword" placeholder="Пароль">
+            <button id="doLoginBtn">🔐 Войти</button>
+            <hr style="margin: 20px 0; opacity: 0.3;">
+            <input type="text" id="regUsername" placeholder="Имя пользователя">
+            <input type="password" id="regPassword" placeholder="Пароль">
+            <select id="regElement">
                 <option value="fire">🔥 Огонь</option>
                 <option value="water">💧 Вода</option>
                 <option value="earth">🌍 Земля</option>
                 <option value="wind">💨 Ветер</option>
             </select>
-            <button id="startGameBtn">🎮 Начать игру</button>
-            <button id="clearDataBtn" style="margin-top: 10px; background: #ff4444;">🗑️ Очистить сохранения</button>
+            <button id="doRegisterBtn">📝 Зарегистрироваться</button>
         </div>
     </div>
 
@@ -281,7 +286,7 @@
                 <span class="badge currency" id="currencyDisplay">💰 0</span>
                 <span class="badge trophies" id="trophiesDisplay">🏆 0</span>
                 <span id="leagueDisplay" class="badge">🥉 Бронза</span>
-                <button id="resetBtn">🔄 Сброс</button>
+                <button id="logoutBtn">🚪 Выйти</button>
             </div>
         </div>
 
@@ -300,7 +305,7 @@
                     <div id="collectionGrid" class="cards-grid"></div>
                 </div>
                 <div class="deck-area">
-                    <h3>⚔️ Ваша колода (уникальные карты, ≤12) <span id="deckCount">0</span>/12</h3>
+                    <h3>⚔️ Ваша колода (уникальные карты, 12/12) <span id="deckCount">0</span>/12</h3>
                     <div id="deckGrid" class="cards-grid"></div>
                 </div>
             </div>
@@ -335,7 +340,7 @@
                     <div id="opponentCardsField" style="min-height: 160px; display: flex; flex-wrap: wrap; justify-content: center;"></div>
                 </div>
                 <div class="arena">
-                    <div style="text-align:center">🃏 ВАШ ОТРЯД (6 случайных карт из колоды)</div>
+                    <div style="text-align:center">🃏 ВАШ ОТРЯД (6 случайных карт)</div>
                     <div id="playerCardsField" style="min-height: 160px; display: flex; flex-wrap: wrap; justify-content: center;"></div>
                     <button id="fightRoundBtn" style="margin-top: 16px;">⚔️ СЛЕДУЮЩИЙ РАУНД</button>
                 </div>
@@ -355,6 +360,11 @@
 </div>
 
 <script>
+    // ========== SUPABASE ==========
+    const SUPABASE_URL = "https://cpfhtzhmwblkkhvyqiyi.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     // ========== БАЗА КАРТ ==========
     const cardsDB = {
         fire: [
@@ -423,80 +433,154 @@
         return { ...filtered[Math.floor(Math.random() * filtered.length)], rarity };
     }
 
-    function buyPack(element) {
+    // 6 стартовых карт (уникальных)
+    function getStarterCards(element) {
+        let cards = [];
+        let available = [...cardsDB[element]];
+        for (let i = available.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [available[i], available[j]] = [available[j], available[i]];
+        }
+        for (let i = 0; i < Math.min(6, available.length); i++) {
+            cards.push({ ...available[i], count: 1 });
+        }
+        return cards;
+    }
+
+    async function saveUserToSupabase() {
         if (!currentUser) return;
-        if (currentUser.currency < 100) { 
-            alert("Не хватает монет!"); 
-            return; 
-        }
-        currentUser.currency -= 100;
-        let newCards = [];
-        for (let i = 0; i < 3; i++) {
-            newCards.push(getRandomCardByElement(element));
-        }
-        let compensation = 0;
-        for (let card of newCards) {
-            let existing = currentUser.collection.find(c => c.name === card.name);
-            if (existing) {
-                existing.count++;
-                compensation += compensationMap[card.rarity];
-            } else {
-                currentUser.collection.push({ ...card, count: 1 });
-            }
-        }
-        if (compensation > 0) {
-            currentUser.currency += compensation;
-        }
-        saveUserData();
-        showPackAnimation(newCards, compensation);
-    }
-
-    function showPackAnimation(cards, compensation) {
-        const modal = document.getElementById("packModal");
-        const container = document.getElementById("packCardsList");
-        container.innerHTML = "";
-        cards.forEach((c, i) => {
-            let div = document.createElement("div");
-            div.className = `pack-card card ${c.rarity}`;
-            div.style.animationDelay = `${i * 0.1}s`;
-            div.innerHTML = `<b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.rarity}`;
-            container.appendChild(div);
+        await supabase.from("users").upsert({
+            id: currentUser.id,
+            username: currentUser.username,
+            password_hash: currentUser.password_hash,
+            element: currentUser.element,
+            currency: currentUser.currency,
+            trophies: currentUser.trophies,
+            collection: currentUser.collection,
+            deck: currentUser.deck
         });
-        if (compensation) {
-            let compDiv = document.createElement("div");
-            compDiv.innerHTML = `<br>✨ Компенсация: +${compensation} монет ✨`;
-            container.appendChild(compDiv);
-        }
-        modal.classList.remove("hidden");
-        document.getElementById("closePackBtn").onclick = () => {
-            modal.classList.add("hidden");
-            renderCollectionAndDeck();
+    }
+
+    async function loadUserFromSupabase(userId) {
+        let { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+        if (data) {
+            currentUser = data;
+            if (!currentUser.collection) currentUser.collection = [];
+            if (!currentUser.deck) currentUser.deck = [];
             updateUI();
-        };
-    }
-
-    function getLeagueByTrophies(trophies) {
-        return leagues.find(l => trophies >= l.min && trophies < l.max) || leagues[leagues.length - 1];
-    }
-
-    function saveUserData() {
-        if (currentUser) {
-            localStorage.setItem("elementsGame", JSON.stringify(currentUser));
+            renderCollectionAndDeck();
         }
     }
 
-    function clearSave() {
-        localStorage.removeItem("elementsGame");
-        location.reload();
+    function saveSession() {
+        if (currentUser) {
+            localStorage.setItem("session", JSON.stringify({
+                userId: currentUser.id,
+                username: currentUser.username,
+                password_hash: currentUser.password_hash
+            }));
+        }
     }
 
+    function loadSession() {
+        const session = localStorage.getItem("session");
+        if (session) {
+            const { userId, username, password_hash } = JSON.parse(session);
+            loadUserFromSupabase(userId);
+        }
+    }
+
+    function clearSession() {
+        localStorage.removeItem("session");
+        currentUser = null;
+        document.getElementById("authScreen").classList.add("active");
+        document.getElementById("mainScreen").classList.remove("active");
+    }
+
+    async function register() {
+        const username = document.getElementById("regUsername").value.trim();
+        const password = document.getElementById("regPassword").value;
+        const element = document.getElementById("regElement").value;
+        
+        if (!username || !password) {
+            alert("Введите имя и пароль!");
+            return;
+        }
+        
+        // Хеш пароля (простой, для демо)
+        const password_hash = btoa(password);
+        
+        // Проверка существования
+        const { data: existing } = await supabase.from("users").select("id").eq("username", username);
+        if (existing && existing.length > 0) {
+            alert("Имя уже занято!");
+            return;
+        }
+        
+        const starterCards = getStarterCards(element);
+        const starterDeck = [...starterCards];
+        
+        const { data, error } = await supabase.from("users").insert({
+            username: username,
+            password_hash: password_hash,
+            element: element,
+            currency: 0,
+            trophies: 0,
+            collection: starterCards,
+            deck: starterDeck
+        }).select().single();
+        
+        if (error) {
+            alert("Ошибка: " + error.message);
+            return;
+        }
+        
+        currentUser = data;
+        saveSession();
+        updateUI();
+        renderCollectionAndDeck();
+        document.getElementById("authScreen").classList.remove("active");
+        document.getElementById("mainScreen").classList.add("active");
+        document.getElementById("deckPanel").classList.add("active");
+    }
+    
+    async function login() {
+        const username = document.getElementById("loginUsername").value.trim();
+        const password = document.getElementById("loginPassword").value;
+        const password_hash = btoa(password);
+        
+        const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .eq("username", username)
+            .eq("password_hash", password_hash)
+            .single();
+        
+        if (error || !data) {
+            alert("Неверное имя или пароль!");
+            return;
+        }
+        
+        currentUser = data;
+        saveSession();
+        updateUI();
+        renderCollectionAndDeck();
+        document.getElementById("authScreen").classList.remove("active");
+        document.getElementById("mainScreen").classList.add("active");
+        document.getElementById("deckPanel").classList.add("active");
+    }
+    
     function updateUI() {
         if (!currentUser) return;
         document.getElementById("currencyDisplay").innerHTML = `💰 ${currentUser.currency}`;
         document.getElementById("trophiesDisplay").innerHTML = `🏆 ${currentUser.trophies}`;
         let league = getLeagueByTrophies(currentUser.trophies);
         document.getElementById("leagueDisplay").innerHTML = league.name;
-        document.getElementById("userNameDisplay").innerHTML = `${currentUser.name} (${currentUser.element === "fire" ? "🔥" : currentUser.element === "water" ? "💧" : currentUser.element === "earth" ? "🌍" : "💨"})`;
+        document.getElementById("userNameDisplay").innerHTML = `${currentUser.username} (${currentUser.element === "fire" ? "🔥" : currentUser.element === "water" ? "💧" : currentUser.element === "earth" ? "🌍" : "💨"})`;
+    }
+
+    function getLeagueByTrophies(trophies) {
+        return leagues.find(l => trophies >= l.min && trophies < l.max) || leagues[leagues.length - 1];
     }
 
     function renderCollectionAndDeck() {
@@ -524,29 +608,27 @@
         `).join('');
     }
 
-    window.addToDeck = (cardName) => {
-        if (!currentUser) return;
+    window.addToDeck = async (cardName) => {
         let card = currentUser.collection.find(c => c.name === cardName);
         if (!card || card.count <= 0) {
-            alert("Нет такой карты в коллекции!");
+            alert("Нет такой карты!");
             return;
         }
         if (currentUser.deck.length >= 12) {
-            alert("В колоде не может быть больше 12 карт");
+            alert("В колоде максимум 12 карт!");
             return;
         }
         if (currentUser.deck.some(c => c.name === cardName)) {
-            alert("Дубликаты в колоде запрещены");
+            alert("Дубликаты запрещены!");
             return;
         }
         currentUser.deck.push({ ...card, count: undefined });
         card.count--;
         renderCollectionAndDeck();
-        saveUserData();
+        await saveUserToSupabase();
     };
 
-    window.removeFromDeck = (cardName) => {
-        if (!currentUser) return;
+    window.removeFromDeck = async (cardName) => {
         let idx = currentUser.deck.findIndex(c => c.name === cardName);
         if (idx === -1) return;
         let removed = currentUser.deck[idx];
@@ -554,8 +636,60 @@
         if (original) original.count++;
         currentUser.deck.splice(idx, 1);
         renderCollectionAndDeck();
-        saveUserData();
+        await saveUserToSupabase();
     };
+
+    async function buyPack(element) {
+        if (!currentUser) return;
+        if (currentUser.currency < 100) {
+            alert("Не хватает монет!");
+            return;
+        }
+        currentUser.currency -= 100;
+        let newCards = [];
+        for (let i = 0; i < 3; i++) {
+            newCards.push(getRandomCardByElement(element));
+        }
+        let compensation = 0;
+        for (let card of newCards) {
+            let existing = currentUser.collection.find(c => c.name === card.name);
+            if (existing) {
+                existing.count++;
+                compensation += compensationMap[card.rarity];
+            } else {
+                currentUser.collection.push({ ...card, count: 1 });
+            }
+        }
+        if (compensation > 0) {
+            currentUser.currency += compensation;
+        }
+        await saveUserToSupabase();
+        showPackAnimation(newCards, compensation);
+    }
+
+    function showPackAnimation(cards, compensation) {
+        const modal = document.getElementById("packModal");
+        const container = document.getElementById("packCardsList");
+        container.innerHTML = "";
+        cards.forEach((c, i) => {
+            let div = document.createElement("div");
+            div.className = `pack-card card ${c.rarity}`;
+            div.style.animationDelay = `${i * 0.1}s`;
+            div.innerHTML = `<b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.rarity}`;
+            container.appendChild(div);
+        });
+        if (compensation) {
+            let compDiv = document.createElement("div");
+            compDiv.innerHTML = `<br>✨ Компенсация: +${compensation} монет ✨`;
+            container.appendChild(compDiv);
+        }
+        modal.classList.remove("hidden");
+        document.getElementById("closePackBtn").onclick = () => {
+            modal.classList.add("hidden");
+            renderCollectionAndDeck();
+            updateUI();
+        };
+    }
 
     function getRandomSquadFromDeck() {
         if (!currentUser.deck.length) return [];
@@ -572,19 +706,14 @@
         return Math.floor(attacker.damage * mult);
     }
 
-    function startBattle() {
+    async function startBattle() {
         if (!currentUser) return;
-        if (!currentUser.deck.length) {
-            alert("Сначала собери колоду (нажми на карты в коллекции)!");
+        if (currentUser.deck.length < 6) {
+            alert("В колоде минимум 6 карт! Добавь карты.");
             return;
         }
         
         let playerSquad = getRandomSquadFromDeck();
-        if (playerSquad.length < 6) {
-            alert("В колоде меньше 6 карт! Добавь ещё карт.");
-            return;
-        }
-
         let opponentElem = ["fire", "water", "earth", "wind"][Math.floor(Math.random() * 4)];
         let opponentSquad = [];
         for (let i = 0; i < 6; i++) {
@@ -625,7 +754,7 @@
         oppField.innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
     }
 
-    function executeRound() {
+    async function executeRound() {
         if (!currentBattle) return;
         
         let res = { playerTotal: 0, opponentTotal: 0, logs: [] };
@@ -654,17 +783,17 @@
         document.getElementById("scoreDisplay").innerHTML = `${currentBattle.playerScore}:${currentBattle.opponentScore}`;
 
         if (currentBattle.round === 3) {
-            endBattle();
+            await endBattle();
         } else {
             currentBattle.round++;
             document.getElementById("roundNum").innerHTML = currentBattle.round;
             currentBattle.playerSquad = getRandomSquadFromDeck();
             updateBattleDisplay();
-            alert(`Раунд ${currentBattle.round}! Новый случайный отряд из колоды.`);
+            alert(`Раунд ${currentBattle.round}! Новый случайный отряд.`);
         }
     }
 
-    function endBattle() {
+    async function endBattle() {
         let playerWon = currentBattle.playerScore > currentBattle.opponentScore;
         let trophies = playerWon ? 25 : -8;
         let coins = playerWon ? 100 : 0;
@@ -674,7 +803,7 @@
         currentUser.trophies = newTrophies;
         currentUser.currency += coins;
         
-        saveUserData();
+        await saveUserToSupabase();
         updateUI();
         alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
         
@@ -684,54 +813,10 @@
         renderCollectionAndDeck();
     }
 
-    function newGame() {
-        const name = document.getElementById("playerName").value.trim();
-        const element = document.getElementById("playerElement").value;
-        
-        if (!name) {
-            alert("Введите имя!");
-            return;
-        }
-        
-        let starterCards = [];
-        let sourceCards = [...cardsDB[element]];
-        
-        for (let i = sourceCards.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [sourceCards[i], sourceCards[j]] = [sourceCards[j], sourceCards[i]];
-        }
-        
-        for (let i = 0; i < Math.min(8, sourceCards.length); i++) {
-            starterCards.push({ 
-                name: sourceCards[i].name, 
-                rarity: sourceCards[i].rarity, 
-                damage: sourceCards[i].damage, 
-                count: 1 
-            });
-        }
-        
-        currentUser = {
-            name: name,
-            element: element,
-            currency: 0,
-            trophies: 0,
-            collection: starterCards,
-            deck: []
-        };
-        
-        saveUserData();
-        updateUI();
-        renderCollectionAndDeck();
-        
-        document.getElementById("startScreen").classList.remove("active");
-        document.getElementById("mainScreen").classList.add("active");
-        document.getElementById("deckPanel").classList.add("active");
-    }
-
-    // ========== НАВЕШИВАЕМ СОБЫТИЯ ==========
-    document.getElementById("startGameBtn").onclick = newGame;
-    document.getElementById("clearDataBtn").onclick = clearSave;
-    document.getElementById("resetBtn").onclick = clearSave;
+    // ========== СОБЫТИЯ ==========
+    document.getElementById("doRegisterBtn").onclick = register;
+    document.getElementById("doLoginBtn").onclick = login;
+    document.getElementById("logoutBtn").onclick = clearSession;
     document.getElementById("toDeckBtn").onclick = () => {
         if (!currentUser) return;
         document.getElementById("deckPanel").classList.add("active");
@@ -767,6 +852,8 @@
     };
     document.getElementById("botBattleBtn").onclick = () => { if (currentUser) startBattle(); };
     document.getElementById("fightRoundBtn").onclick = () => { if (currentBattle) executeRound(); };
+
+    loadSession();
 </script>
 </body>
 </html>
