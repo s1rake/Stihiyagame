@@ -367,35 +367,80 @@
 
     // ========== БАЗА КАРТ ==========
     const cardsDB = {
-        fire: [
-            { name: "Имолец", rarity: "common", damage: 12 },
-            { name: "Огненный волк", rarity: "rare", damage: 18 },
-            { name: "Феникс-страж", rarity: "epic", damage: 26 },
-            { name: "Лорд пламени", rarity: "legendary", damage: 38 },
-            { name: "Инферно дракон", rarity: "mythic", damage: 55 }
-        ],
-        water: [
-            { name: "Капля", rarity: "common", damage: 12 },
-            { name: "Ледяной дух", rarity: "rare", damage: 18 },
-            { name: "Морской змей", rarity: "epic", damage: 26 },
-            { name: "Левиафан", rarity: "legendary", damage: 38 },
-            { name: "Кракен", rarity: "mythic", damage: 55 }
-        ],
-        earth: [
-            { name: "Корень", rarity: "common", damage: 12 },
-            { name: "Голем", rarity: "rare", damage: 18 },
-            { name: "Древень", rarity: "epic", damage: 26 },
-            { name: "Титан земли", rarity: "legendary", damage: 38 },
-            { name: "Гайя", rarity: "mythic", damage: 55 }
-        ],
-        wind: [
-            { name: "Порыв", rarity: "common", damage: 12 },
-            { name: "Буревестник", rarity: "rare", damage: 18 },
-            { name: "Сильф", rarity: "epic", damage: 26 },
-            { name: "Повелитель бурь", rarity: "legendary", damage: 38 },
-            { name: "Аэрос", rarity: "mythic", damage: 55 }
-        ]
-    };
+    fire: [
+        // 5 обычных
+        { name: "Имолец", rarity: "common", damage: 10 },
+        { name: "Огненный шар", rarity: "common", damage: 11 },
+        { name: "Пиромант", rarity: "common", damage: 12 },
+        { name: "Пламенный клинок", rarity: "common", damage: 10 },
+        { name: "Горящий уголь", rarity: "common", damage: 11 },
+        // 4 редких
+        { name: "Огненный волк", rarity: "rare", damage: 16 },
+        { name: "Саламандра", rarity: "rare", damage: 17 },
+        { name: "Магма-голем", rarity: "rare", damage: 15 },
+        { name: "Огненный элементаль", rarity: "rare", damage: 18 },
+        // 3 эпических
+        { name: "Феникс-страж", rarity: "epic", damage: 24 },
+        { name: "Повелитель огня", rarity: "epic", damage: 25 },
+        { name: "Дракон лавы", rarity: "epic", damage: 26 },
+        // 2 легендарных
+        { name: "Лорд пламени", rarity: "legendary", damage: 35 },
+        { name: "Саламандра-король", rarity: "legendary", damage: 36 },
+        // 1 мифическая (уникальная)
+        { name: "Инферно дракон", rarity: "mythic", damage: 55 }
+    ],
+    water: [
+        { name: "Капля", rarity: "common", damage: 10 },
+        { name: "Водный дух", rarity: "common", damage: 11 },
+        { name: "Ледяная стрела", rarity: "common", damage: 10 },
+        { name: "Морская пена", rarity: "common", damage: 12 },
+        { name: "Ручеёк", rarity: "common", damage: 11 },
+        { name: "Ледяной дух", rarity: "rare", damage: 16 },
+        { name: "Морской змей", rarity: "rare", damage: 17 },
+        { name: "Водяной", rarity: "rare", damage: 15 },
+        { name: "Ледяной голем", rarity: "rare", damage: 18 },
+        { name: "Морской змей", rarity: "epic", damage: 24 },
+        { name: "Левиафан", rarity: "epic", damage: 25 },
+        { name: "Царь морей", rarity: "epic", damage: 26 },
+        { name: "Ледяной дракон", rarity: "legendary", damage: 35 },
+        { name: "Повелитель волн", rarity: "legendary", damage: 36 },
+        { name: "Кракен", rarity: "mythic", damage: 55 }
+    ],
+    earth: [
+        { name: "Корень", rarity: "common", damage: 10 },
+        { name: "Каменная броня", rarity: "common", damage: 11 },
+        { name: "Земляной червь", rarity: "common", damage: 10 },
+        { name: "Песчаный вихрь", rarity: "common", damage: 12 },
+        { name: "Кактус-воин", rarity: "common", damage: 11 },
+        { name: "Голем", rarity: "rare", damage: 16 },
+        { name: "Древень", rarity: "rare", damage: 17 },
+        { name: "Камнепад", rarity: "rare", damage: 15 },
+        { name: "Земляной страж", rarity: "rare", damage: 18 },
+        { name: "Горный великан", rarity: "epic", damage: 24 },
+        { name: "Титан земли", rarity: "epic", damage: 25 },
+        { name: "Король гор", rarity: "epic", damage: 26 },
+        { name: "Дракон земли", rarity: "legendary", damage: 35 },
+        { name: "Повелитель недр", rarity: "legendary", damage: 36 },
+        { name: "Гайя", rarity: "mythic", damage: 55 }
+    ],
+    wind: [
+        { name: "Порыв", rarity: "common", damage: 10 },
+        { name: "Ветряная стрела", rarity: "common", damage: 11 },
+        { name: "Буревестник", rarity: "common", damage: 10 },
+        { name: "Облачный странник", rarity: "common", damage: 12 },
+        { name: "Вихрь", rarity: "common", damage: 11 },
+        { name: "Грозовой дух", rarity: "rare", damage: 16 },
+        { name: "Сильф", rarity: "rare", damage: 17 },
+        { name: "Птица-гром", rarity: "rare", damage: 15 },
+        { name: "Воздушный элементаль", rarity: "rare", damage: 18 },
+        { name: "Повелитель бурь", rarity: "epic", damage: 24 },
+        { name: "Циклон", rarity: "epic", damage: 25 },
+        { name: "Грифон", rarity: "epic", damage: 26 },
+        { name: "Дракон ветра", rarity: "legendary", damage: 35 },
+        { name: "Буревой король", rarity: "legendary", damage: 36 },
+        { name: "Аэрос", rarity: "mythic", damage: 55 }
+    ]
+};
 
     const elementBonus = {
         fire: { wind: 2.0, earth: 0.5, water: 1.0, fire: 1.0 },
