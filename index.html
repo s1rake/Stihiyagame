@@ -5,12 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Стихии Битва — PvP</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -18,20 +13,9 @@
             color: white;
             padding: 20px;
         }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .screen {
-            display: none;
-        }
-
-        .screen.active {
-            display: block;
-        }
-
+        .container { max-width: 1400px; margin: 0 auto; }
+        .screen { display: none; }
+        .screen.active { display: block; }
         .header {
             background: rgba(0, 0, 0, 0.4);
             backdrop-filter: blur(12px);
@@ -44,29 +28,10 @@
             margin-bottom: 24px;
             align-items: center;
         }
-
-        .user-stats {
-            display: flex;
-            gap: 20px;
-            font-weight: bold;
-            flex-wrap: wrap;
-        }
-
-        .badge {
-            background: rgba(0, 0, 0, 0.6);
-            padding: 6px 16px;
-            border-radius: 40px;
-        }
-
-        .currency {
-            background: linear-gradient(135deg, #f9b42c, #f5a623);
-            color: #1e1a2f;
-        }
-
-        .trophies {
-            background: linear-gradient(135deg, #b83bff, #6a1b9a);
-        }
-
+        .user-stats { display: flex; gap: 20px; font-weight: bold; flex-wrap: wrap; }
+        .badge { background: rgba(0, 0, 0, 0.6); padding: 6px 16px; border-radius: 40px; }
+        .currency { background: linear-gradient(135deg, #f9b42c, #f5a623); color: #1e1a2f; }
+        .trophies { background: linear-gradient(135deg, #b83bff, #6a1b9a); }
         button {
             background: linear-gradient(95deg, #5f6cff, #9333ea);
             border: none;
@@ -77,75 +42,27 @@
             cursor: pointer;
             transition: 0.2s;
         }
-
-        button:hover {
-            transform: scale(1.02);
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-            gap: 18px;
-            margin: 20px 0;
-        }
-
+        button:hover { transform: scale(1.02); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; margin: 20px 0; }
         .card {
             background: linear-gradient(145deg, #1f2a48, #111827);
             border-radius: 20px;
             padding: 14px;
             text-align: center;
             border: 2px solid rgba(255, 255, 240, 0.2);
-            transition: 0.1s;
             cursor: pointer;
         }
-
-        .card.selected {
-            border: 3px solid gold;
-            box-shadow: 0 0 15px gold;
-            transform: scale(1.02);
-        }
-
+        .card.selected { border: 3px solid gold; box-shadow: 0 0 15px gold; transform: scale(1.02); }
         .common { border-top: 5px solid #9ca3af; }
         .rare { border-top: 5px solid #3b82f6; }
         .epic { border-top: 5px solid #a855f7; }
         .legendary { border-top: 5px solid #facc15; }
         .mythic { border-top: 5px solid #ff4d4d; box-shadow: 0 0 12px #ff4d4d80; }
-
-        .deck-builder {
-            display: flex;
-            gap: 30px;
-            flex-wrap: wrap;
-        }
-
-        .collection-area, .deck-area {
-            flex: 1;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 24px;
-            padding: 20px;
-        }
-
-        .battle-row {
-            display: flex;
-            gap: 30px;
-            justify-content: center;
-            margin: 20px 0;
-            flex-wrap: wrap;
-        }
-
-        .arena {
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 32px;
-            padding: 20px;
-            flex: 1;
-            min-width: 280px;
-            backdrop-filter: blur(4px);
-        }
-
+        .deck-builder { display: flex; gap: 30px; flex-wrap: wrap; }
+        .collection-area, .deck-area { flex: 1; background: rgba(0, 0, 0, 0.3); border-radius: 24px; padding: 20px; }
+        .battle-row { display: flex; gap: 30px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
+        .arena { background: rgba(0, 0, 0, 0.5); border-radius: 32px; padding: 20px; flex: 1; min-width: 280px; backdrop-filter: blur(4px); }
         .card-slot {
             display: inline-block;
             background: #0f1422cc;
@@ -155,135 +72,31 @@
             width: 130px;
             text-align: center;
             cursor: pointer;
-            transition: 0.1s;
         }
-
-        .card-slot.selected {
-            border: 2px solid gold;
-            box-shadow: 0 0 10px gold;
-        }
-
-        .enemy-hidden {
-            filter: blur(4px);
-            background: #2a2f4b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .battle-log {
-            background: #00000066;
-            margin: 16px;
-            padding: 12px;
-            border-radius: 24px;
-            font-size: 14px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000000cc;
-            backdrop-filter: blur(8px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal-card {
-            background: linear-gradient(145deg, #1f2a48, #0f1422);
-            border-radius: 48px;
-            padding: 30px;
-            max-width: 600px;
-            width: 90%;
-            text-align: center;
-            animation: bounce 0.4s ease;
-        }
-
-        @keyframes bounce {
-            0% { transform: scale(0.3); opacity: 0; }
-            80% { transform: scale(1.05); }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        .pack-card {
-            display: inline-block;
-            margin: 10px;
-            animation: fly 0.5s ease-out;
-        }
-
-        @keyframes fly {
-            from {
-                transform: translateY(-100px) rotate(-10deg);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0) rotate(0);
-                opacity: 1;
-            }
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .auth-container {
-            max-width: 400px;
-            margin: 80px auto;
-            background: #0f142bbb;
-            border-radius: 48px;
-            padding: 32px;
-            text-align: center;
-        }
-
-        .auth-container input, .auth-container select {
-            width: 100%;
-            margin: 12px 0;
-            padding: 12px;
-            border-radius: 40px;
-            border: none;
-            font-size: 16px;
-        }
-
-        .shop-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-        }
-
-        .pack {
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 24px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-
+        .card-slot.selected { border: 2px solid gold; box-shadow: 0 0 10px gold; }
+        .enemy-hidden { filter: blur(4px); background: #2a2f4b; display: flex; align-items: center; justify-content: center; }
+        .battle-log { background: #00000066; margin: 16px; padding: 12px; border-radius: 24px; font-size: 14px; max-height: 200px; overflow-y: auto; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000000cc; backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-card { background: linear-gradient(145deg, #1f2a48, #0f1422); border-radius: 48px; padding: 30px; max-width: 600px; width: 90%; text-align: center; animation: bounce 0.4s ease; }
+        @keyframes bounce { 0% { transform: scale(0.3); opacity: 0; } 80% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
+        .pack-card { display: inline-block; margin: 10px; animation: fly 0.5s ease-out; }
+        @keyframes fly { from { transform: translateY(-100px) rotate(-10deg); opacity: 0; } to { transform: translateY(0) rotate(0); opacity: 1; } }
+        .hidden { display: none; }
+        .auth-container { max-width: 400px; margin: 80px auto; background: #0f142bbb; border-radius: 48px; padding: 32px; text-align: center; }
+        .auth-container input, .auth-container select { width: 100%; margin: 12px 0; padding: 12px; border-radius: 40px; border: none; font-size: 16px; }
+        .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .pack { background: rgba(0, 0, 0, 0.4); border-radius: 24px; padding: 20px; text-align: center; cursor: pointer; transition: 0.2s; }
         .pack:hover { transform: scale(1.02); background: rgba(0, 0, 0, 0.6); }
         .pack.fire { border: 2px solid #ff4444; }
         .pack.water { border: 2px solid #4488ff; }
         .pack.earth { border: 2px solid #44ff44; }
         .pack.wind { border: 2px solid #ffaa44; }
-
-        .selection-info {
-            background: rgba(0,0,0,0.5);
-            padding: 10px;
-            border-radius: 20px;
-            margin: 10px 0;
-            text-align: center;
-        }
+        .selection-info { background: rgba(0,0,0,0.5); padding: 10px; border-radius: 20px; margin: 10px 0; text-align: center; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="container">
-    <!-- АВТОРИЗАЦИЯ -->
     <div id="authScreen" class="screen active">
         <div class="auth-container">
             <h1>✨ Стихии Битва ✨</h1>
@@ -303,7 +116,6 @@
         </div>
     </div>
 
-    <!-- ОСНОВНАЯ ИГРА -->
     <div id="mainScreen" class="screen">
         <div class="header">
             <h2>🌀 Стихии Битва</h2>
@@ -325,13 +137,11 @@
             <button id="leagueBtn">🏆 Лига</button>
         </div>
 
-        <!-- ПОИСК БОЯ -->
         <div id="searchPanel" style="background:rgba(0,0,0,0.5); border-radius:24px; padding:20px; margin-bottom:20px; display:none;">
             <input type="text" id="battleCodeInput" placeholder="Код боя" style="padding:10px; border-radius:20px; border:none; margin-right:10px;">
             <button id="joinBattleBtn">Присоединиться</button>
         </div>
 
-        <!-- КОЛЛЕКЦИЯ И КОЛОДА -->
         <div id="deckPanel" class="screen">
             <div class="deck-builder">
                 <div class="collection-area">
@@ -345,7 +155,6 @@
             </div>
         </div>
 
-        <!-- МАГАЗИН -->
         <div id="shopPanel" class="screen">
             <h3>🃏 Магазин паков (100💰 = 3 карты)</h3>
             <div class="shop-grid">
@@ -356,13 +165,11 @@
             </div>
         </div>
 
-        <!-- ЛИГА -->
         <div id="leaguePanel" class="screen">
             <h3>🏆 Трофейная лига</h3>
             <div id="leagueInfo"></div>
         </div>
 
-        <!-- БОЕВОЙ ЭКРАН -->
         <div id="battlePanel" class="screen">
             <div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
                 <h3 id="battleOpponentName">Противник</h3>
@@ -385,7 +192,6 @@
     </div>
 </div>
 
-<!-- МОДАЛКА ПАКА -->
 <div id="packModal" class="modal hidden">
     <div class="modal-card">
         <h2>✨ ОТКРЫТИЕ ПАКА ✨</h2>
@@ -396,9 +202,9 @@
 
 <script>
     // ========== SUPABASE ==========
-    const SUPABASE_URL = "https://cpfhtzhmwblkkhvyqiyi.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SB_URL = "https://cpfhtzhmwblkkhvyqiyi.supabase.co";
+    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
+    const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
     // ========== БАЗА КАРТ ==========
     const cardsDB = {
@@ -453,6 +259,8 @@
     let currentBattle = null;
     let currentSelectedForAttack = [];
     let currentPlayerSquad = [];
+    let currentBattleId = null;
+    let pvpInterval = null;
 
     function getRandomCardByElement(element, forcedRarity = null) {
         let pool = cardsDB[element];
@@ -483,9 +291,9 @@
         return cards;
     }
 
-    async function saveUserToSupabase() {
+    async function saveUser() {
         if (!currentUser) return;
-        await supabase.from("users").upsert({
+        await sb.from("users").upsert({
             id: currentUser.id,
             username: currentUser.username,
             password_hash: currentUser.password_hash,
@@ -497,8 +305,8 @@
         });
     }
 
-    async function loadUserFromSupabase(userId) {
-        let { data, error } = await supabase.from("users").select("*").eq("id", userId).single();
+    async function loadUser(userId) {
+        let { data, error } = await sb.from("users").select("*").eq("id", userId).single();
         if (data) {
             currentUser = data;
             if (!currentUser.collection) currentUser.collection = [];
@@ -522,7 +330,7 @@
         const session = localStorage.getItem("session");
         if (session) {
             const { userId } = JSON.parse(session);
-            loadUserFromSupabase(userId);
+            loadUser(userId);
         }
     }
 
@@ -545,7 +353,7 @@
         
         const password_hash = btoa(password);
         
-        const { data: existing } = await supabase.from("users").select("id").eq("username", username);
+        const { data: existing } = await sb.from("users").select("id").eq("username", username);
         if (existing && existing.length > 0) {
             alert("Имя уже занято!");
             return;
@@ -554,7 +362,7 @@
         const starterCards = getStarterCards(element);
         const starterDeck = starterCards.map(c => ({ ...c, count: undefined }));
         
-        const { data, error } = await supabase.from("users").insert({
+        const { data, error } = await sb.from("users").insert({
             username: username,
             password_hash: password_hash,
             element: element,
@@ -583,7 +391,7 @@
         const password = document.getElementById("loginPassword").value;
         const password_hash = btoa(password);
         
-        const { data, error } = await supabase
+        const { data, error } = await sb
             .from("users")
             .select("*")
             .eq("username", username)
@@ -659,7 +467,7 @@
         currentUser.deck.push({ ...card, count: undefined });
         card.count--;
         renderCollectionAndDeck();
-        await saveUserToSupabase();
+        await saveUser();
     };
 
     window.removeFromDeck = async (cardName) => {
@@ -670,7 +478,7 @@
         if (original) original.count++;
         currentUser.deck.splice(idx, 1);
         renderCollectionAndDeck();
-        await saveUserToSupabase();
+        await saveUser();
     };
 
     async function buyPack(element) {
@@ -697,7 +505,7 @@
         if (compensation > 0) {
             currentUser.currency += compensation;
         }
-        await saveUserToSupabase();
+        await saveUser();
         showPackAnimation(newCards, compensation);
         renderCollectionAndDeck();
         updateUI();
@@ -740,7 +548,7 @@
         return Math.floor(attacker.damage * mult);
     }
 
-    // ========== БОЙ С БОТОМ ==========
+    // БОЙ С БОТОМ
     async function startBotBattle() {
         if (!currentUser) return;
         if (!currentUser.deck.length || currentUser.deck.length < 6) {
@@ -768,10 +576,6 @@
         showBattleScreen();
     }
 
-    // ========== PvP ==========
-    let currentBattleId = null;
-    let pvpInterval = null;
-
     async function createBattle() {
         if (!currentUser) return;
         if (!currentUser.deck.length || currentUser.deck.length < 6) {
@@ -782,7 +586,7 @@
         let playerSquad = getRandomSquadFromDeck();
         let battleCode = Math.random().toString(36).substring(2, 8).toUpperCase();
         
-        const { data, error } = await supabase.from("battles").insert({
+        const { data, error } = await sb.from("battles").insert({
             battle_code: battleCode,
             player1_id: currentUser.id,
             player1_username: currentUser.username,
@@ -819,7 +623,7 @@
         
         let playerSquad = getRandomSquadFromDeck();
         
-        const { data, error } = await supabase
+        const { data, error } = await sb
             .from("battles")
             .update({
                 player2_id: currentUser.id,
@@ -849,7 +653,7 @@
         pvpInterval = setInterval(async () => {
             if (!currentBattleId) return;
             
-            const { data, error } = await supabase
+            const { data, error } = await sb
                 .from("battles")
                 .select("*")
                 .eq("id", currentBattleId)
@@ -866,7 +670,7 @@
                         alert("ПОРАЖЕНИЕ! -8 трофеев");
                         currentUser.trophies = Math.max(0, currentUser.trophies - 8);
                     }
-                    await saveUserToSupabase();
+                    await saveUser();
                     updateUI();
                     currentBattle = null;
                     currentBattleId = null;
@@ -880,38 +684,10 @@
                 } else {
                     document.getElementById("attackBtn").disabled = true;
                 }
-                
-                if (data.round !== currentBattle?.round) {
-                    loadBattleFromData(data);
-                }
             }
         }, 2000);
     }
 
-    function loadBattleFromData(data) {
-        let isPlayer1 = data.player1_id === currentUser.id;
-        let playerSquad = isPlayer1 ? data.player1_selected : data.player2_selected;
-        let opponentSquad = isPlayer1 ? data.player2_selected : data.player1_selected;
-        
-        currentBattle = {
-            isBot: false,
-            battleId: data.id,
-            opponentUsername: isPlayer1 ? data.player2_username : data.player1_username,
-            opponentElement: isPlayer1 ? data.player2_element : data.player1_element,
-            opponentSquad: opponentSquad || [],
-            round: data.round,
-            playerScore: isPlayer1 ? data.player1_score : data.player2_score,
-            opponentScore: isPlayer1 ? data.player2_score : data.player1_score,
-        };
-        
-        if (playerSquad) {
-            currentPlayerSquad = playerSquad;
-            currentSelectedForAttack = [];
-            showBattleScreen();
-        }
-    }
-
-    // ========== ОБЩИЙ БОЕВОЙ ЭКРАН ==========
     function showBattleScreen() {
         document.getElementById("battlePanel").classList.add("active");
         document.getElementById("deckPanel").classList.remove("active");
@@ -919,7 +695,7 @@
         document.getElementById("leaguePanel").classList.remove("active");
         document.getElementById("searchPanel").style.display = "none";
 
-        const opponentName = currentBattle.isBot ? "🤖 Бот" : currentBattle.opponentUsername;
+        const opponentName = currentBattle.isBot ? "🤖 Бот" : "Игрок";
         const elemIcon = currentBattle.opponentElement === "fire" ? "🔥" : currentBattle.opponentElement === "water" ? "💧" : currentBattle.opponentElement === "earth" ? "🌍" : "💨";
         document.getElementById("battleOpponentName").innerHTML = `${opponentName} (${elemIcon})`;
         document.getElementById("roundNum").innerHTML = currentBattle.round;
@@ -948,8 +724,6 @@
     }
 
     window.toggleSelectCard = (idx) => {
-        if (currentBattle?.round !== currentBattle?.round) return;
-        
         const index = currentSelectedForAttack.indexOf(idx);
         if (index === -1) {
             if (currentSelectedForAttack.length < 4) {
@@ -1029,13 +803,13 @@
         currentUser.trophies = newTrophies;
         currentUser.currency += coins;
         
-        await saveUserToSupabase();
+        await saveUser();
         updateUI();
         
         alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
         
         if (currentBattleId) {
-            await supabase.from("battles").update({
+            await sb.from("battles").update({
                 status: "finished",
                 winner_id: playerWon ? currentUser.id : null,
                 player1_score: currentBattle.playerScore,
@@ -1051,7 +825,7 @@
         renderCollectionAndDeck();
     }
 
-    // ========== СОБЫТИЯ ==========
+    // СОБЫТИЯ
     document.getElementById("doRegisterBtn").onclick = register;
     document.getElementById("doLoginBtn").onclick = login;
     document.getElementById("logoutBtn").onclick = clearSession;
