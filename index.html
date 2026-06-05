@@ -791,24 +791,37 @@ else if (isMyTurn && ((data.player1_selected && data.player1_selected.length ===
     let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
     
     console.log("Карты атакующего:", attackerCards);
-    console.log("Мои карты для защиты:", mySquad);
-    console.log("currentSquad.length до загрузки:", currentSquad.length);
     
     if (attackerCards && attackerCards.length === 4) {
         showOpponentCards(attackerCards);
         document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
     }
     
-    // ВСЕГДА загружаем карты защитника заново при каждом входе в этот блок
-    if (mySquad && mySquad.length >= 4) {
+    // ЗАГРУЖАЕМ КАРТЫ ТОЛЬКО ОДИН РАЗ
+    if (currentSquad.length === 0 && mySquad && mySquad.length >= 4) {
         currentSquad = [...mySquad];
         currentSelected = [];
-        window.cardsLoaded = true;
         console.log("Загружены карты защитника:", currentSquad);
+        
+        // Показываем карты
+        const playerField = document.getElementById("playerCardsField");
+        playerField.innerHTML = currentSquad.map((card, idx) => `
+            <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick="toggleSelectCard(${idx})">
+                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+            </div>
+        `).join('');
+        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
+    } else if (currentSquad.length > 0) {
+        // Если карты уже загружены, просто обновляем отображение (без перезагрузки)
+        const playerField = document.getElementById("playerCardsField");
+        playerField.innerHTML = currentSquad.map((card, idx) => `
+            <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick="toggleSelectCard(${idx})">
+                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+            </div>
+        `).join('');
+        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
     }
     
-    // ПРИНУДИТЕЛЬНО ПОКАЗЫВАЕМ КАРТЫ И КНОПКУ
-    showMyCards();
     document.getElementById("readyBtn").style.display = "block";
     document.getElementById("readyBtn").disabled = false;
     document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
