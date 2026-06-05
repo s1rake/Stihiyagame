@@ -705,6 +705,15 @@ async function updateBattle() {
     let isMyTurn = (data.current_turn === currentUser.id);
     let round = data.round;
     
+    console.log("=== updateBattle ===");
+    console.log("isPlayer1:", isPlayer1);
+    console.log("isMyTurn:", isMyTurn);
+    console.log("round:", round);
+    console.log("player1_selected:", data.player1_selected);
+    console.log("player2_selected:", data.player2_selected);
+    console.log("player1_squad:", data.player1_squad);
+    console.log("player2_squad:", data.player2_squad);
+    
     document.getElementById("scoreDisplay").innerHTML = `${data.player1_score}:${data.player2_score}`;
     document.getElementById("roundNum").innerHTML = round;
     document.getElementById("battleOpponentName").innerHTML = isPlayer1 ? data.player2_username : data.player1_username;
@@ -713,9 +722,11 @@ async function updateBattle() {
     
     // Атакующий выбирает карты
     if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
+        console.log("Режим: АТАКУЮЩИЙ");
         if (currentSquad.length === 0) {
             currentSquad = isPlayer1 ? [...(data.player1_squad || [])] : [...(data.player2_squad || [])];
             currentSelected = [];
+            console.log("Загружены карты атакующего:", currentSquad);
         }
         document.getElementById("readyBtn").style.display = "block";
         document.getElementById("readyBtn").disabled = false;
@@ -728,17 +739,25 @@ async function updateBattle() {
     }
     // Защитник видит карты атаки и выбирает защиту
     else if (!isAttacker && !isMyTurn && data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) {
+        console.log("Режим: ЗАЩИТНИК");
         // Показываем карты атакующего
         let attackerCards = isPlayer1 ? data.player1_selected : data.player2_selected;
+        console.log("Карты атакующего для показа:", attackerCards);
         showOpponentCards(attackerCards);
         document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
         
-        // Загружаем карты защитника
-        if (currentSquad.length === 0) {
-            currentSquad = isPlayer1 ? [...(data.player2_squad || [])] : [...(data.player1_squad || [])];
+        // ЗАГРУЖАЕМ КАРТЫ ЗАЩИТНИКА ПРИНУДИТЕЛЬНО
+        let defenderSquad = isPlayer1 ? data.player2_squad : data.player1_squad;
+        console.log("Карты защитника из БД:", defenderSquad);
+        
+        if (defenderSquad && defenderSquad.length >= 4) {
+            currentSquad = [...defenderSquad];
             currentSelected = [];
             console.log("Загружены карты защитника:", currentSquad);
+        } else {
+            console.log("ОШИБКА: Нет карт защитника в БД!");
         }
+        
         document.getElementById("readyBtn").style.display = "block";
         document.getElementById("readyBtn").disabled = false;
         document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
@@ -748,6 +767,7 @@ async function updateBattle() {
     }
     // Если оба выбрали - считаем результат
     else if (data.player1_selected && data.player2_selected && !data.player1_ready && !data.player2_ready) {
+        console.log("Режим: РАСЧЁТ РАУНДА");
         let isPlayer1Attacker = (round === 1 || round === 3);
         let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
         let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
@@ -814,6 +834,18 @@ async function updateBattle() {
         currentSquad = [];
         currentSelected = [];
     }
+    // Если защитник, но атакующий ещё не выбрал карты
+    else if (!isAttacker && !isMyTurn && (!data.player1_selected || data.player1_selected.length === 0)) {
+        console.log("Режим: ОЖИДАНИЕ ВЫБОРА АТАКУЮЩЕГО");
+        document.getElementById("readyBtn").style.display = "none";
+        document.getElementById("waitingOpponentMsg").style.display = "block";
+        document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
+        document.getElementById("opponentCardsField").innerHTML = '';
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание выбора карт атаки от соперника...`;
+        currentSquad = [];
+        currentSelected = [];
+        showMyCards();
+    }
     
     document.getElementById("battlePanel").classList.add("active");
     document.getElementById("lobbyPanel").classList.remove("active");
@@ -822,7 +854,6 @@ async function updateBattle() {
     document.getElementById("shopPanel").classList.remove("active");
     document.getElementById("leaguePanel").classList.remove("active");
 }
-
 function showMyCards() {
     let playerField = document.getElementById("playerCardsField");
     if (currentSquad && currentSquad.length >= 4) {
