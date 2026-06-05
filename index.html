@@ -76,7 +76,10 @@
             transition: 0.2s;
         }
         .card-slot.selected { border: 2px solid gold; box-shadow: 0 0 10px gold; transform: scale(1.02); }
-        .enemy-hidden { filter: blur(4px); background: #2a2f4b; display: flex; align-items: center; justify-content: center; }
+        .card-slot.slot-1 { order: 1; }
+        .card-slot.slot-2 { order: 2; }
+        .card-slot.slot-3 { order: 3; }
+        .card-slot.slot-4 { order: 4; }
         .enemy-visible { background: linear-gradient(145deg, #3a2f6b, #2a1f4b); border: 1px solid #aa88ff; }
         .battle-log { background: #00000066; margin: 16px; padding: 12px; border-radius: 24px; font-size: 14px; max-height: 200px; overflow-y: auto; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000000cc; backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
@@ -132,16 +135,31 @@
             background: linear-gradient(145deg, #1f2a48, #0f1422);
             border-radius: 60px;
             padding: 40px;
-            min-width: 400px;
+            min-width: 500px;
             animation: zoomIn 0.4s ease;
         }
         @keyframes zoomIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .slot-result {
+            background: rgba(0,0,0,0.5);
+            margin: 10px;
+            padding: 10px;
+            border-radius: 15px;
+        }
         .damage-number-big { font-size: 48px; font-weight: bold; color: #ff4444; text-shadow: 0 0 10px black; margin: 20px; animation: pulse 0.5s ease; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
         .vs-text { font-size: 36px; margin: 20px; color: #ffaa44; }
         .winner-text { font-size: 32px; margin: 20px; color: #44ff44; }
         .waiting-msg { color: #ffaa44; margin-top: 10px; font-size: 14px; }
-        
+        .slots-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        .slot-card {
+            flex: 1;
+            min-width: 120px;
+        }
         .rewards-grid {
             display: flex;
             flex-wrap: wrap;
@@ -260,11 +278,11 @@
             <div class="battle-row">
                 <div class="arena">
                     <div style="text-align:center" id="opponentLabel">❓ КАРТЫ ПРОТИВНИКА</div>
-                    <div id="opponentCardsField" style="min-height: 160px; display: flex; flex-wrap: wrap; justify-content: center;"></div>
+                    <div id="opponentCardsField" class="slots-container" style="min-height: 160px;"></div>
                 </div>
                 <div class="arena">
-                    <div style="text-align:center">🎴 ВЫБЕРИ 4 КАРТЫ</div>
-                    <div id="playerCardsField" style="min-height: 160px; display: flex; flex-wrap: wrap; justify-content: center;"></div>
+                    <div style="text-align:center">🎴 ВЫБЕРИ 4 КАРТЫ (по слотам)</div>
+                    <div id="playerCardsField" class="slots-container" style="min-height: 160px;"></div>
                     <div class="selection-info" id="selectionInfo">Выбрано: 0/4</div>
                     <button id="readyBtn" style="background: #44ff44; color: #000;">✅ ГОТОВО</button>
                     <div id="waitingOpponentMsg" class="waiting-msg" style="display: none;">⏳ Ожидание хода соперника...</div>
@@ -362,7 +380,7 @@
 
     let currentUser = null;
     let currentBattle = null;
-    let currentSelected = [];
+    let currentSelected = new Array(4).fill(null); // 4 слота
     let currentSquad = [];
     let currentBattleId = null;
     let lobbyInterval = null;
@@ -414,6 +432,45 @@
         return Math.floor(attacker.damage * mult);
     }
 
+    function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem) {
+        let attackerWins = 0;
+        let defenderWins = 0;
+        let attackerTotal = 0;
+        let defenderTotal = 0;
+        let results = [];
+        
+        for (let i = 0; i < 4; i++) {
+            let attackCard = attackerCards[i];
+            let defendCard = defenderCards[i];
+            
+            if (!attackCard || !defendCard) continue;
+            
+            let attackDmg = computeDamage(attackCard, defenderElem);
+            let defendDmg = computeDamage(defendCard, attackerElem);
+            
+            attackerTotal += attackDmg;
+            defenderTotal += defendDmg;
+            
+            if (attackDmg > defendDmg) {
+                attackerWins++;
+                results.push({ slot: i + 1, winner: "Атакующий", attackerCard: attackCard.name, attackerDamage: attackDmg, defenderCard: defendCard.name, defenderDamage: defendDmg });
+            } else if (defendDmg > attackDmg) {
+                defenderWins++;
+                results.push({ slot: i + 1, winner: "Защитник", attackerCard: attackCard.name, attackerDamage: attackDmg, defenderCard: defendCard.name, defenderDamage: defendDmg });
+            } else {
+                results.push({ slot: i + 1, winner: "Ничья", attackerCard: attackCard.name, attackerDamage: attackDmg, defenderCard: defendCard.name, defenderDamage: defendDmg });
+            }
+        }
+        
+        // Победитель раунда: кто выиграл больше слотов, или по сумме урона
+        let roundWinner = "";
+        if (attackerWins > defenderWins) roundWinner = "Атакующий";
+        else if (defenderWins > attackerWins) roundWinner = "Защитник";
+        else roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
+        
+        return { attackerTotal, defenderTotal, attackerWins, defenderWins, roundWinner, results };
+    }
+
     function getLossPenalty(leagueName) {
         let league = leagues.find(l => l.name === leagueName);
         return league ? league.lossPenalty : 2;
@@ -425,26 +482,32 @@
 
     function showOpponentCards(cards) {
         let oppField = document.getElementById("opponentCardsField");
-        oppField.innerHTML = cards.map(card => `
-            <div class="card-slot ${card.rarity} enemy-visible">
-                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+        oppField.innerHTML = cards.map((card, idx) => `
+            <div class="card-slot ${card.rarity} enemy-visible slot-${idx+1}">
+                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}<br>Слот ${idx+1}
             </div>
         `).join('');
-        for (let i = cards.length; i < 4; i++) {
-            oppField.innerHTML += `<div class="card-slot enemy-hidden">❓❓❓</div>`;
-        }
     }
 
-    function showRoundResult(p1Name, p1Damage, p2Name, p2Damage, winnerName) {
+    function showRoundResult(p1Name, p2Name, results, attackerTotal, defenderTotal, roundWinner) {
         return new Promise((resolve) => {
             const overlay = document.createElement('div');
             overlay.className = 'battle-overlay';
+            let slotsHtml = results.map(r => `
+                <div class="slot-result">
+                    <b>Слот ${r.slot}</b><br>
+                    🗡️ ${r.attackerCard}: ${r.attackerDamage} vs 🛡️ ${r.defenderCard}: ${r.defenderDamage}<br>
+                    <span style="color: ${r.winner === 'Атакующий' ? '#44ff44' : r.winner === 'Защитник' ? '#ff4444' : '#ffaa44'}">🏆 ${r.winner}</span>
+                </div>
+            `).join('');
+            
             overlay.innerHTML = `
                 <div class="battle-center">
                     <div style="font-size: 24px;">⚔️ РАУНД ${currentBattle?.round || 1} ⚔️</div>
                     <div class="vs-text">${p1Name} vs ${p2Name}</div>
-                    <div class="damage-number-big">${p1Damage} ⚔️ ${p2Damage}</div>
-                    <div class="winner-text">${winnerName === "Ничья" ? "🤝 НИЧЬЯ" : winnerName + " побеждает в раунде!"}</div>
+                    <div class="damage-number-big">${attackerTotal} ⚔️ ${defenderTotal}</div>
+                    <div style="margin: 20px 0;">${slotsHtml}</div>
+                    <div class="winner-text">${roundWinner === "Ничья" ? "🤝 НИЧЬЯ" : roundWinner + " побеждает в раунде!"}</div>
                     <button id="continueBtn" style="margin-top: 20px; padding: 10px 30px; font-size: 18px;">Продолжить</button>
                 </div>
             `;
@@ -688,6 +751,7 @@
             isBot: false, battleId: updatedData.id,
             player1Id: updatedData.player1_id, player2Id: updatedData.player2_id,
             player1Name: updatedData.player1_username, player2Name: updatedData.player2_username,
+            player1Element: updatedData.player1_element, player2Element: updatedData.player2_element,
             player1Squad: updatedData.player1_squad, player2Squad: updatedData.player2_squad,
             round: updatedData.round || 1, 
             player1Score: updatedData.player1_score || 0, player2Score: updatedData.player2_score || 0,
@@ -701,28 +765,31 @@
         if (isBothPlayersExist && isMyTurn) {
             let mySquad = isPlayer1 ? currentBattle.player1Squad : currentBattle.player2Squad;
             currentSquad = mySquad || [];
-            currentSelected = [];
+            currentSelected = new Array(4).fill(null);
             document.getElementById("readyBtn").style.display = "block";
             document.getElementById("readyBtn").disabled = false;
             document.getElementById("readyBtn").innerHTML = "✅ ГОТОВО";
             document.getElementById("waitingOpponentMsg").style.display = "none";
             document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты и нажми "ГОТОВО"!`;
+            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты (по слотам) и нажми "ГОТОВО"!`;
         } else if (isBothPlayersExist) {
             let opponentSelected = isPlayer1 ? currentBattle.player2Selected : currentBattle.player1Selected;
-            if (opponentSelected && opponentSelected.length > 0) {
+            if (opponentSelected && opponentSelected.length === 4) {
                 opponentSelectedCards = opponentSelected;
                 document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                 showOpponentCards(opponentSelected);
             } else {
                 document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
-                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+                document.getElementById("opponentCardsField").innerHTML = '';
             }
-            document.getElementById("readyBtn").style.display = "none";
-            document.getElementById("waitingOpponentMsg").style.display = "block";
+            document.getElementById("readyBtn").style.display = "block";
+            document.getElementById("readyBtn").disabled = false;
+            document.getElementById("readyBtn").innerHTML = "✅ ВЫБРАТЬ ЗАЩИТУ";
+            document.getElementById("waitingOpponentMsg").style.display = "none";
             let turnPlayer = (currentBattle.currentTurn === updatedData.player1_id) ? updatedData.player1_username : updatedData.player2_username;
-            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Ожидание хода ${turnPlayer}...`;
-            currentSquad = [];
+            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты для защиты (против карт соперника) и нажми "ГОТОВО"!`;
+            currentSquad = isPlayer1 ? currentBattle.player1Squad : currentBattle.player2Squad;
+            currentSelected = new Array(4).fill(null);
         } else {
             document.getElementById("readyBtn").style.display = "none";
             document.getElementById("waitingOpponentMsg").style.display = "block";
@@ -734,12 +801,13 @@
     }
 
     async function submitReady() {
-        if (currentSelected.length !== 4) { 
-            alert("Выбери 4 карты!"); 
+        let selectedCount = currentSelected.filter(c => c !== null).length;
+        if (selectedCount !== 4) { 
+            alert("Выбери 4 карты (по одному в каждый слот)!"); 
             return; 
         }
         let isPlayer1 = currentBattle.player1Id === currentUser.id;
-        let selectedCards = currentSelected.map(i => currentSquad[i]);
+        let selectedCards = currentSelected;
         let updateData = {};
         if (isPlayer1) {
             updateData.player1_selected = selectedCards;
@@ -773,21 +841,22 @@
             isResolving = true;
             let p1Selected = data.player1_selected || [];
             let p2Selected = data.player2_selected || [];
-            let p1Damage = 0, p2Damage = 0;
-            let defenderElem1 = p2Selected[0]?.element || "fire";
-            let defenderElem2 = p1Selected[0]?.element || "fire";
-            for (let card of p1Selected) {
-                p1Damage += computeDamage(card, defenderElem1);
-            }
-            for (let card of p2Selected) {
-                p2Damage += computeDamage(card, defenderElem2);
-            }
+            let isPlayer1Attacker = (data.current_turn === data.player1_id);
+            let attackerCards = isPlayer1Attacker ? p1Selected : p2Selected;
+            let defenderCards = isPlayer1Attacker ? p2Selected : p1Selected;
+            let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
+            let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
+            let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
+            let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
+            let defenderName = isPlayer1Attacker ? data.player2_username : data.player1_username;
             let newPlayer1Score = data.player1_score || 0;
             let newPlayer2Score = data.player2_score || 0;
-            if (p1Damage > p2Damage) {
-                newPlayer1Score++;
-            } else if (p2Damage > p1Damage) {
-                newPlayer2Score++;
+            if (result.roundWinner === "Атакующий") {
+                if (isPlayer1Attacker) newPlayer1Score++;
+                else newPlayer2Score++;
+            } else if (result.roundWinner === "Защитник") {
+                if (!isPlayer1Attacker) newPlayer1Score++;
+                else newPlayer2Score++;
             }
             await sb.from("battles").update({
                 player1_score: newPlayer1Score,
@@ -797,11 +866,7 @@
                 currentBattle.player1Score = newPlayer1Score;
                 currentBattle.player2Score = newPlayer2Score;
             }
-            let winnerName = "";
-            if (p1Damage > p2Damage) winnerName = data.player1_username;
-            else if (p2Damage > p1Damage) winnerName = data.player2_username;
-            else winnerName = "Ничья";
-            await showRoundResult(data.player1_username, p1Damage, data.player2_username, p2Damage, winnerName);
+            await showRoundResult(attackerName, defenderName, result.results, result.attackerTotal, result.defenderTotal, result.roundWinner);
             if (data.round >= 3) {
                 let finalData = (await sb.from("battles").select("*").eq("id", currentBattleId).single()).data;
                 let isPlayer1 = finalData.player1_id === currentUser.id;
@@ -833,10 +898,11 @@
             }
             let newSquad1 = getRandomSquad();
             let newSquad2 = getRandomSquad();
+            let nextTurn = data.player1_id;
             await sb.from("battles").update({
                 player1_squad: newSquad1,
                 player2_squad: newSquad2,
-                current_turn: data.player1_id,
+                current_turn: nextTurn,
                 round: data.round + 1,
                 player1_ready: false,
                 player2_ready: false,
@@ -901,17 +967,17 @@
             document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
             document.getElementById("roundNum").innerHTML = data.round;
             let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
-            if (opponentSelected && opponentSelected.length > 0) {
+            if (opponentSelected && opponentSelected.length === 4 && !isMyTurn) {
                 let isNew = JSON.stringify(opponentSelected) !== JSON.stringify(opponentSelectedCards);
                 if (isNew) {
                     opponentSelectedCards = opponentSelected;
                     document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                     showOpponentCards(opponentSelected);
                 }
-            } else if (!isMyTurn && !opponentSelected) {
+            } else if (!isMyTurn && (!opponentSelected || opponentSelected.length === 0)) {
                 opponentSelectedCards = null;
                 document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
-                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+                document.getElementById("opponentCardsField").innerHTML = '';
             }
             let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
             let roundChanged = currentBattle && currentBattle.round !== data.round;
@@ -935,43 +1001,56 @@
         document.getElementById("roundNum").innerHTML = currentBattle.round;
         document.getElementById("scoreDisplay").innerHTML = `${currentBattle.player1Score}:${currentBattle.player2Score}`;
         let playerField = document.getElementById("playerCardsField");
-        if (currentSquad.length > 0) {
+        if (currentSquad.length >= 4) {
             playerField.innerHTML = currentSquad.map((card, idx) => `
-                <div class="card-slot ${card.rarity} ${currentSelected.includes(idx) ? 'selected' : ''}" onclick="toggleSelect(${idx})" data-idx="${idx}">
-                    <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+                <div class="card-slot ${card.rarity} slot-${idx+1} ${currentSelected[idx] ? 'selected' : ''}" onclick="selectCardForSlot(${idx})" data-idx="${idx}">
+                    <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}<br>Слот ${idx+1}
                 </div>
             `).join('');
             document.getElementById("selectionInfo").style.display = "block";
-            document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
+            let selectedCount = currentSelected.filter(c => c !== null).length;
+            document.getElementById("selectionInfo").innerHTML = `Выбрано: ${selectedCount}/4`;
         } else {
             playerField.innerHTML = '<div style="padding: 40px;">⏳ Ожидание хода...</div>';
             document.getElementById("selectionInfo").style.display = "none";
         }
     }
 
-    window.toggleSelect = (idx) => {
-        let index = currentSelected.indexOf(idx);
-        if (index === -1) { 
-            if (currentSelected.length < 4) currentSelected.push(idx); 
-        } else { 
-            currentSelected.splice(index, 1); 
+    window.selectCardForSlot = (slotIdx) => {
+        if (!currentSquad.length) return;
+        let slotCard = currentSelected[slotIdx];
+        if (slotCard) {
+            alert("Этот слот уже заполнен! Сначала удалите карту.");
+            return;
         }
-        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
-        let playerField = document.getElementById("playerCardsField");
-        playerField.innerHTML = currentSquad.map((card, idx) => `
-            <div class="card-slot ${card.rarity} ${currentSelected.includes(idx) ? 'selected' : ''}" onclick="toggleSelect(${idx})" data-idx="${idx}">
-                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
-            </div>
-        `).join('');
+        let availableCards = currentSquad.filter(card => !currentSelected.includes(card));
+        if (availableCards.length === 0) {
+            alert("Нет доступных карт!");
+            return;
+        }
+        let cardNames = availableCards.map(c => `${c.name} (⚔️${c.damage})`).join(", ");
+        let selectedName = prompt(`Выбери карту для слота ${slotIdx+1}:\nДоступные карты:\n${cardNames}`, availableCards[0]?.name);
+        let selectedCard = availableCards.find(c => c.name === selectedName);
+        if (selectedCard) {
+            currentSelected[slotIdx] = selectedCard;
+            showBattleScreen();
+        } else {
+            alert("Карта не найдена!");
+        }
+    };
+
+    window.removeCardFromSlot = (slotIdx) => {
+        currentSelected[slotIdx] = null;
+        showBattleScreen();
     };
 
     async function startBotBattle() {
         if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт в колоду!"); return; }
         currentSquad = getRandomSquad();
-        currentSelected = [];
+        currentSelected = new Array(4).fill(null);
         let oppSquad = [];
         for (let i=0;i<6;i++) oppSquad.push(getRandomCard());
-        currentBattle = { isBot: true, opponentSquad: oppSquad, round: 1, playerScore: 0, opponentScore: 0 };
+        currentBattle = { isBot: true, opponentSquad: oppSquad, round: 1, playerScore: 0, opponentScore: 0, playerElement: currentUser.element, opponentElement: ["fire","water","earth","wind"][Math.floor(Math.random()*4)] };
         document.getElementById("battlePanel").classList.add("active");
         document.getElementById("lobbyPanel").classList.remove("active");
         document.getElementById("waitingPanel").classList.remove("active");
@@ -981,7 +1060,7 @@
         document.getElementById("battleOpponentName").innerHTML = "🤖 Бот";
         document.getElementById("roundNum").innerHTML = "1";
         document.getElementById("scoreDisplay").innerHTML = "0:0";
-        document.getElementById("battleLog").innerHTML = "Выбери 4 карты для атаки!";
+        document.getElementById("battleLog").innerHTML = "Выбери 4 карты для атаки (по слотам)!";
         document.getElementById("readyBtn").style.display = "none";
         if (!document.getElementById("attackBtn")) {
             let btn = document.createElement("button");
@@ -999,48 +1078,47 @@
     function updateBattleDisplayBot() {
         let playerField = document.getElementById("playerCardsField");
         playerField.innerHTML = currentSquad.map((card, idx) => `
-            <div class="card-slot ${card.rarity} ${currentSelected.includes(idx) ? 'selected' : ''}" onclick="toggleSelectBot(${idx})" data-idx="${idx}">
-                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+            <div class="card-slot ${card.rarity} slot-${idx+1} ${currentSelected[idx] ? 'selected' : ''}" onclick="selectCardForSlotBot(${idx})" data-idx="${idx}">
+                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}<br>Слот ${idx+1}
             </div>
         `).join('');
-        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
-        document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+        let selectedCount = currentSelected.filter(c => c !== null).length;
+        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${selectedCount}/4`;
+        document.getElementById("opponentCardsField").innerHTML = '';
     }
 
-    window.toggleSelectBot = (idx) => {
-        let index = currentSelected.indexOf(idx);
-        if (index === -1) { 
-            if (currentSelected.length < 4) currentSelected.push(idx); 
-        } else { 
-            currentSelected.splice(index, 1); 
+    window.selectCardForSlotBot = (slotIdx) => {
+        if (!currentSquad.length) return;
+        let slotCard = currentSelected[slotIdx];
+        if (slotCard) {
+            alert("Этот слот уже заполнен! Сначала удалите карту.");
+            return;
         }
-        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
-        let playerField = document.getElementById("playerCardsField");
-        playerField.innerHTML = currentSquad.map((card, idx) => `
-            <div class="card-slot ${card.rarity} ${currentSelected.includes(idx) ? 'selected' : ''}" onclick="toggleSelectBot(${idx})" data-idx="${idx}">
-                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
-            </div>
-        `).join('');
+        let availableCards = currentSquad.filter(card => !currentSelected.includes(card));
+        if (availableCards.length === 0) {
+            alert("Нет доступных карт!");
+            return;
+        }
+        let cardNames = availableCards.map(c => `${c.name} (⚔️${c.damage})`).join(", ");
+        let selectedName = prompt(`Выбери карту для слота ${slotIdx+1}:\nДоступные карты:\n${cardNames}`, availableCards[0]?.name);
+        let selectedCard = availableCards.find(c => c.name === selectedName);
+        if (selectedCard) {
+            currentSelected[slotIdx] = selectedCard;
+            updateBattleDisplayBot();
+        } else {
+            alert("Карта не найдена!");
+        }
     };
 
     async function attackBot() {
-        if (currentSelected.length !== 4) { alert("Выбери 4 карты!"); return; }
-        let attacking = currentSelected.map(i => currentSquad[i]);
-        let playerTotal = 0;
-        let defenderElem = currentBattle.opponentSquad[0]?.element || "fire";
-        for (let card of attacking) {
-            playerTotal += computeDamage(card, defenderElem);
-        }
-        let defending = currentBattle.opponentSquad.slice(0, 4);
-        let opponentTotal = 0;
-        let defenderElem2 = attacking[0]?.element || "fire";
-        for (let card of defending) {
-            opponentTotal += computeDamage(card, defenderElem2);
-        }
-        await showRoundResult(currentUser.username, playerTotal, "Бот", opponentTotal, 
-            playerTotal > opponentTotal ? currentUser.username : playerTotal < opponentTotal ? "Бот" : "Ничья");
-        if (playerTotal > opponentTotal) { currentBattle.playerScore++; }
-        else if (opponentTotal > playerTotal) { currentBattle.opponentScore++; }
+        let selectedCount = currentSelected.filter(c => c !== null).length;
+        if (selectedCount !== 4) { alert("Выбери 4 карты (по слотам)!"); return; }
+        let attackerCards = currentSelected;
+        let defenderCards = currentBattle.opponentSquad.slice(0, 4);
+        let result = calculateRoundDamage(attackerCards, defenderCards, currentUser.element, currentBattle.opponentElement);
+        await showRoundResult(currentUser.username, "Бот", result.results, result.attackerTotal, result.defenderTotal, result.roundWinner);
+        if (result.roundWinner === "Атакующий") { currentBattle.playerScore++; }
+        else if (result.roundWinner === "Защитник") { currentBattle.opponentScore++; }
         document.getElementById("scoreDisplay").innerHTML = `${currentBattle.playerScore}:${currentBattle.opponentScore}`;
         if (currentBattle.round === 3) {
             let won = currentBattle.playerScore > currentBattle.opponentScore;
@@ -1057,9 +1135,9 @@
             currentBattle.round++;
             document.getElementById("roundNum").innerHTML = currentBattle.round;
             currentSquad = getRandomSquad(); 
-            currentSelected = [];
+            currentSelected = new Array(4).fill(null);
             updateBattleDisplayBot();
-            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты!`;
+            document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты (по слотам)!`;
         }
     }
 
