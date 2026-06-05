@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -444,13 +444,18 @@
     }
 
     function showOpponentCards(cards) {
-        let oppField = document.getElementById("opponentCardsField");
-        oppField.innerHTML = cards.map((card, idx) => `
-            <div class="card-slot ${card.rarity} enemy-visible">
-                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}<br>Слот ${idx+1}
-            </div>
-        `).join('');
+    if (!cards || !Array.isArray(cards) || cards.length === 0) {
+        console.log("showOpponentCards: нет карт для отображения", cards);
+        document.getElementById("opponentCardsField").innerHTML = '<div class="card-slot enemy-hidden">❓❓❓</div>';
+        return;
     }
+    let oppField = document.getElementById("opponentCardsField");
+    oppField.innerHTML = cards.map((card, idx) => `
+        <div class="card-slot ${card.rarity} enemy-visible">
+            <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}<br>Слот ${idx+1}
+        </div>
+    `).join('');
+}
 
     function showRoundResult(p1Name, p1Damage, p2Name, p2Damage, results, roundWinner) {
         return new Promise((resolve) => {
@@ -711,7 +716,14 @@ async function updateBattle() {
     
     let isAttacker = (round === 1 || round === 3) ? isPlayer1 : !isPlayer1;
     
-    // ===== СЛУЧАЙ 1: Атакующий выбирает карты =====
+    // ОТЛАДКА: выводим важные переменные
+    console.log("=== updateBattle ===");
+    console.log("isAttacker:", isAttacker);
+    console.log("isMyTurn:", isMyTurn);
+    console.log("player1_selected:", data.player1_selected);
+    console.log("player2_selected:", data.player2_selected);
+    
+    // СЛУЧАЙ 1: Атакующий выбирает карты
     if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
         console.log("Режим: АТАКУЮЩИЙ выбирает карты");
         if (currentSquad.length === 0) {
@@ -727,13 +739,21 @@ async function updateBattle() {
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
         showMyCards();
     }
-    // ===== СЛУЧАЙ 2: Защитник выбирает защиту (атакующий уже выбрал) =====
+    // СЛУЧАЙ 2: Защитник выбирает защиту (атакующий уже выбрал)
     else if (!isAttacker && isMyTurn && data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) {
         console.log("Режим: ЗАЩИТНИК выбирает защиту");
-        // Показываем карты атакующего
+        
+        // Показываем карты атакующего (с проверкой на null)
         let attackerCards = isPlayer1 ? data.player1_selected : data.player2_selected;
-        showOpponentCards(attackerCards);
-        document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
+        console.log("Карты атакующего:", attackerCards);
+        
+        if (attackerCards && attackerCards.length === 4) {
+            showOpponentCards(attackerCards);
+            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
+        } else {
+            document.getElementById("opponentLabel").innerHTML = "❓ ОЖИДАНИЕ КАРТ АТАКИ";
+            document.getElementById("opponentCardsField").innerHTML = '';
+        }
         
         // Загружаем карты защитника
         if (currentSquad.length === 0) {
@@ -748,7 +768,7 @@ async function updateBattle() {
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
         showMyCards();
     }
-    // ===== СЛУЧАЙ 3: Оба выбрали - считаем результат =====
+    // СЛУЧАЙ 3: Оба выбрали - считаем результат
     else if (data.player1_selected && data.player2_selected && !data.player1_ready && !data.player2_ready) {
         console.log("Режим: РАСЧЁТ РАУНДА");
         let isPlayer1Attacker = (round === 1 || round === 3);
@@ -817,7 +837,7 @@ async function updateBattle() {
         currentSquad = [];
         currentSelected = [];
     }
-    // ===== СЛУЧАЙ 4: Ожидание, когда атакующий ещё не выбрал =====
+    // СЛУЧАЙ 4: Ожидание, когда атакующий ещё не выбрал
     else if (!isAttacker && !isMyTurn && (!data.player1_selected || data.player1_selected.length === 0)) {
         console.log("Режим: ОЖИДАНИЕ ВЫБОРА АТАКУЮЩЕГО");
         document.getElementById("readyBtn").style.display = "none";
@@ -836,6 +856,21 @@ async function updateBattle() {
     document.getElementById("deckPanel").classList.remove("active");
     document.getElementById("shopPanel").classList.remove("active");
     document.getElementById("leaguePanel").classList.remove("active");
+}
+
+function showMyCards() {
+    let playerField = document.getElementById("playerCardsField");
+    if (currentSquad && currentSquad.length >= 4) {
+        playerField.innerHTML = currentSquad.map((card, idx) => `
+            <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick="toggleSelectCard(${idx})">
+                <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
+            </div>
+        `).join('');
+        document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
+    } else {
+        playerField.innerHTML = '<div style="padding: 40px;">⏳ Загрузка карт...</div>';
+        document.getElementById("selectionInfo").innerHTML = `Выбрано: 0/4`;
+    }
 }
 function showMyCards() {
     let playerField = document.getElementById("playerCardsField");
