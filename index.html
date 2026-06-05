@@ -891,8 +891,8 @@ async function submitReady() {
     console.log("currentBattle.player2_id:", currentBattle.player2_id);
     
     if (isAttacker) {
-        // АТАКУЮЩИЙ
-        let nextTurn = currentBattle.round === 1 ? currentBattle.player2_id : currentBattle.player1_id;
+        // АТАКУЮЩИЙ - сохраняем карты и ПЕРЕДАЁМ ХОД ЗАЩИТНИКУ
+        let nextTurn = (currentBattle.round === 1 || currentBattle.round === 3) ? currentBattle.player2_id : currentBattle.player1_id;
         console.log("Атакующий, передаём ход игроку:", nextTurn);
         
         let updateData = {};
@@ -925,14 +925,12 @@ async function submitReady() {
         
         let updateData = {};
         if (isPlayer1) {
-            // Игрок 1 защищается -> его выбранные карты сохраняем в player1_selected
             updateData = {
                 player1_selected: currentSelected,
                 player1_ready: true,
                 player2_ready: true
             };
         } else {
-            // Игрок 2 защищается -> его выбранные карты сохраняем в player2_selected
             updateData = {
                 player2_selected: currentSelected,
                 player1_ready: true,
