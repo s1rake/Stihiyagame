@@ -695,7 +695,7 @@
         await updateBattle();
     }
 
- async function updateBattle() {
+async function updateBattle() {
     if (!currentBattleId) return;
     let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
     if (error || !data) return;
@@ -713,9 +713,8 @@
     
     // Атакующий выбирает карты
     if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
-        // ✅ ТОЛЬКО ЕСЛИ currentSquad ПУСТОЙ — загружаем новые карты
         if (currentSquad.length === 0) {
-            currentSquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+            currentSquad = isPlayer1 ? [...(data.player1_squad || [])] : [...(data.player2_squad || [])];
             currentSelected = [];
         }
         document.getElementById("readyBtn").style.display = "block";
@@ -728,15 +727,17 @@
         showMyCards();
     }
     // Защитник видит карты атаки и выбирает защиту
-    else if (!isAttacker && !isMyTurn && data.player1_selected && !data.player2_selected) {
+    else if (!isAttacker && !isMyTurn && data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) {
+        // Показываем карты атакующего
         let attackerCards = isPlayer1 ? data.player1_selected : data.player2_selected;
         showOpponentCards(attackerCards);
         document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
         
-        // ✅ ТОЛЬКО ЕСЛИ currentSquad ПУСТОЙ — загружаем новые карты
+        // Загружаем карты защитника
         if (currentSquad.length === 0) {
-            currentSquad = isPlayer1 ? data.player2_squad : data.player1_squad;
+            currentSquad = isPlayer1 ? [...(data.player2_squad || [])] : [...(data.player1_squad || [])];
             currentSelected = [];
+            console.log("Загружены карты защитника:", currentSquad);
         }
         document.getElementById("readyBtn").style.display = "block";
         document.getElementById("readyBtn").disabled = false;
@@ -791,13 +792,11 @@
             loadLobby();
             clearInterval(battleInterval);
             currentBattleId = null;
-            // ✅ СБРАСЫВАЕМ СОСТОЯНИЕ
             currentSquad = [];
             currentSelected = [];
             return;
         }
         
-        // Следующий раунд - очищаем выбранные карты, обновляем отряды
         let newSquad1 = getRandomSquad();
         let newSquad2 = getRandomSquad();
         let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
@@ -812,7 +811,6 @@
             player2_ready: false
         }).eq("id", currentBattleId);
         
-        // ✅ СБРАСЫВАЕМ ЛОКАЛЬНОЕ СОСТОЯНИЕ ДЛЯ НОВОГО РАУНДА
         currentSquad = [];
         currentSelected = [];
     }
@@ -827,7 +825,7 @@
 
 function showMyCards() {
     let playerField = document.getElementById("playerCardsField");
-    if (currentSquad.length >= 4) {
+    if (currentSquad && currentSquad.length >= 4) {
         playerField.innerHTML = currentSquad.map((card, idx) => `
             <div class="card-slot ${card.rarity} ${currentSelected.includes(card) ? 'selected' : ''}" onclick="toggleSelectCard(${idx})">
                 <b>${card.name}</b><br>⚔️ ${card.damage}<br>${card.element}
@@ -835,7 +833,8 @@ function showMyCards() {
         `).join('');
         document.getElementById("selectionInfo").innerHTML = `Выбрано: ${currentSelected.length}/4`;
     } else {
-        playerField.innerHTML = '<div style="padding: 40px;">⏳ Загрузка...</div>';
+        playerField.innerHTML = '<div style="padding: 40px;">⏳ Загрузка карт...</div>';
+        document.getElementById("selectionInfo").innerHTML = `Выбрано: 0/4`;
     }
 }
 
