@@ -111,7 +111,6 @@
         .delete-btn { background: #ff4444; }
         .status-waiting { color: #ffaa44; }
         .code-display { font-size: 32px; text-align: center; background: #000; padding: 15px; border-radius: 20px; margin: 20px; font-family: monospace; letter-spacing: 5px; }
-        
         .battle-overlay {
             position: fixed;
             top: 0;
@@ -264,7 +263,7 @@
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
     const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
-    // КАРТЫ
+    // КАРТЫ (15 на стихию)
     const cardsDB = {
         fire: [
             { name: "Имолец", rarity: "common", damage: 10 }, { name: "Пламенный клинок", rarity: "common", damage: 11 },
@@ -389,14 +388,23 @@
     async function saveUser() {
         if (!currentUser) return;
         await sb.from("users").upsert({
-            id: currentUser.id, username: currentUser.username, password_hash: currentUser.password_hash,
-            element: currentUser.element, currency: currentUser.currency, trophies: currentUser.trophies,
-            collection: currentUser.collection, deck: currentUser.deck
+            id: currentUser.id,
+            username: currentUser.username,
+            password_hash: currentUser.password_hash,
+            element: currentUser.element,
+            currency: currentUser.currency,
+            trophies: currentUser.trophies,
+            collection: currentUser.collection,
+            deck: currentUser.deck
         });
     }
 
     async function loadUser(userId) {
-        let { data } = await sb.from("users").select("*").eq("id", userId).single();
+        let { data, error } = await sb.from("users").select("*").eq("id", userId).single();
+        if (error) {
+            console.error("Ошибка загрузки пользователя:", error);
+            return;
+        }
         if (data) {
             currentUser = data;
             if (!currentUser.collection) currentUser.collection = [];
@@ -563,20 +571,22 @@
             document.getElementById("readyBtn").innerHTML = "✅ ГОТОВО";
             document.getElementById("waitingOpponentMsg").style.display = "none";
             document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты и нажми "ГОТОВО"!`;
+            showBattleScreen();
         } else if (isBothPlayersExist) {
             document.getElementById("readyBtn").style.display = "none";
             document.getElementById("waitingOpponentMsg").style.display = "block";
             let turnPlayer = (currentBattle.currentTurn === data.player1_id) ? data.player1_username : data.player2_username;
             document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Ожидание хода ${turnPlayer}...`;
             currentSquad = [];
+            showBattleScreen();
         } else {
             document.getElementById("readyBtn").style.display = "none";
             document.getElementById("waitingOpponentMsg").style.display = "block";
             document.getElementById("battleLog").innerHTML = `Ожидание подключения второго игрока...`;
             currentSquad = [];
+            showBattleScreen();
         }
         
-        showBattleScreen();
         startBattleInterval();
     }
 
@@ -616,8 +626,9 @@
     }
 
     async function checkBothReadyAndResolve() {
-        let { data } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-        if (!data) return;
+        if (!currentBattleId) return;
+        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+        if (error || !data) return;
         
         console.log("Проверка готовности:", { p1: data.player1_ready, p2: data.player2_ready });
         
@@ -715,23 +726,24 @@
         if (battleInterval) clearInterval(battleInterval);
         battleInterval = setInterval(async () => {
             if (!currentBattleId) return;
-            let { data } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-            if (data) {
-                if (data.status === "finished") {
-                    clearInterval(battleInterval);
-                    return;
-                }
-                let isPlayer1 = data.player1_id === currentUser.id;
-                document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
-                document.getElementById("roundNum").innerHTML = data.round;
-                
-                let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
-                if (currentTurnChanged || !currentBattle) {
-                    startBattleFromData(data);
-                }
-                
-                await checkBothReadyAndResolve();
+            let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+            if (error || !data) return;
+            
+            if (data.status === "finished") {
+                clearInterval(battleInterval);
+                return;
             }
+            
+            let isPlayer1 = data.player1_id === currentUser.id;
+            document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
+            document.getElementById("roundNum").innerHTML = data.round;
+            
+            let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
+            if (currentTurnChanged || !currentBattle) {
+                startBattleFromData(data);
+            }
+            
+            await checkBothReadyAndResolve();
         }, 1000);
     }
 
@@ -741,6 +753,8 @@
         document.getElementById("waitingPanel").classList.remove("active");
         document.getElementById("deckPanel").classList.remove("active");
         document.getElementById("shopPanel").classList.remove("active");
+        
+        if (!currentBattle) return;
         
         let opponentName = currentBattle.player1Name === currentUser.username ? currentBattle.player2Name : currentBattle.player1Name;
         let opponentElement = currentBattle.player1Name === currentUser.username ? currentBattle.player2Element : currentBattle.player1Element;
@@ -781,7 +795,7 @@
         `).join('');
     };
 
-    // ===== БОЙ С БОТОМ =====
+    // ===== БОЙ С БОТОМ (упрощённо) =====
     async function startBotBattle() {
         if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт в колоду!"); return; }
         currentSquad = getRandomSquad();
@@ -903,14 +917,24 @@
         let element = document.getElementById("regElement").value;
         if (!username || !password) { alert("Заполни всё!"); return; }
         let hash = btoa(password);
+        
         let { data: existing } = await sb.from("users").select("id").eq("username", username);
-        if (existing?.length) { alert("Имя занято!"); return; }
+        if (existing && existing.length > 0) { alert("Имя занято!"); return; }
+        
         let starterCards = getStarterCards(element);
         let starterDeck = starterCards.map(c => ({ name: c.name, rarity: c.rarity, damage: c.damage }));
-        let { data, error } = await sb.from("users").insert({ username, password_hash: hash, element,
-            currency: 0, trophies: 0, collection: starterCards, deck: starterDeck }).select().single();
+        
+        let { data, error } = await sb.from("users").insert({ 
+            username, password_hash: hash, element,
+            currency: 0, trophies: 0, 
+            collection: starterCards, deck: starterDeck 
+        }).select().single();
+        
         if (error) { alert("Ошибка: " + error.message); return; }
-        currentUser = data; saveSession(); updateUI(); renderCards();
+        currentUser = data; 
+        saveSession(); 
+        updateUI(); 
+        renderCards();
         document.getElementById("authScreen").classList.remove("active");
         document.getElementById("mainScreen").classList.add("active");
         document.getElementById("lobbyPanel").classList.add("active");
@@ -925,7 +949,10 @@
         let hash = btoa(password);
         let { data, error } = await sb.from("users").select("*").eq("username", username).eq("password_hash", hash).single();
         if (error || !data) { alert("Неверно!"); return; }
-        currentUser = data; saveSession(); updateUI(); renderCards();
+        currentUser = data; 
+        saveSession(); 
+        updateUI(); 
+        renderCards();
         document.getElementById("authScreen").classList.remove("active");
         document.getElementById("mainScreen").classList.add("active");
         document.getElementById("lobbyPanel").classList.add("active");
