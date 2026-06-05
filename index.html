@@ -88,12 +88,13 @@
         .auth-container { max-width: 400px; margin: 80px auto; background: #0f142bbb; border-radius: 48px; padding: 32px; text-align: center; }
         .auth-container input { width: 100%; margin: 12px 0; padding: 12px; border-radius: 40px; border: none; font-size: 16px; }
         .shop-grid { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
-        .pack { background: rgba(0,0,0,0.5); border-radius: 24px; padding: 20px; width: 180px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .pack { background: rgba(0,0,0,0.5); border-radius: 24px; padding: 20px; width: 200px; text-align: center; cursor: pointer; transition: 0.2s; }
         .pack:hover { transform: scale(1.05); background: rgba(0,0,0,0.7); }
         .pack.fire { border: 2px solid #ff4444; }
         .pack.water { border: 2px solid #4488ff; }
         .pack.earth { border: 2px solid #44ff44; }
         .pack.wind { border: 2px solid #ffaa44; }
+        .pack.random { border: 2px solid #ffffff; background: linear-gradient(135deg, #ff4444, #4488ff, #44ff44, #ffaa44); }
         .selection-info { background: rgba(0,0,0,0.5); padding: 10px; border-radius: 20px; margin: 10px 0; text-align: center; }
         .lobby-container { background: rgba(0,0,0,0.4); border-radius: 32px; padding: 20px; margin-bottom: 20px; }
         .battle-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
@@ -174,7 +175,7 @@
             <button id="toDeckBtn">📚 Коллекция / Колода</button>
             <button id="toShopBtn">🛒 Магазин</button>
             <button id="toLobbyBtn">🎮 Лобби PvP</button>
-            <button id="botBattleBtn">🤖 Бой с ботом</button>
+            <button id="botBattleBtn">🤖 Бой с ботом (10💰)</button>
             <button id="leagueBtn">🏆 Лига</button>
         </div>
 
@@ -211,12 +212,13 @@
         </div>
 
         <div id="shopPanel" class="screen">
-            <h3>🃏 Магазин (100💰 = 3 карты)</h3>
+            <h3>🃏 Магазин паков</h3>
             <div class="shop-grid">
-                <div class="pack fire" onclick="buyPack('fire')">🔥 Огонь</div>
-                <div class="pack water" onclick="buyPack('water')">💧 Вода</div>
-                <div class="pack earth" onclick="buyPack('earth')">🌍 Земля</div>
-                <div class="pack wind" onclick="buyPack('wind')">💨 Ветер</div>
+                <div class="pack fire" onclick="buyPack('fire', 200)">🔥 Пак Огня<br>200💰<br>3 карты огня</div>
+                <div class="pack water" onclick="buyPack('water', 200)">💧 Пак Воды<br>200💰<br>3 карты воды</div>
+                <div class="pack earth" onclick="buyPack('earth', 200)">🌍 Пак Земли<br>200💰<br>3 карты земли</div>
+                <div class="pack wind" onclick="buyPack('wind', 200)">💨 Пак Ветра<br>200💰<br>3 карты ветра</div>
+                <div class="pack random" onclick="buyRandomPack()">🎲 Рандом пак<br>150💰<br>3 любые карты</div>
             </div>
         </div>
 
@@ -258,6 +260,7 @@
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
     const sb = window.supabase.createClient(SB_URL, SB_KEY);
 
+    // ВСЕ КАРТЫ
     const allCards = [
         { name: "Имолец", rarity: "common", damage: 10, element: "fire" },
         { name: "Пламенный клинок", rarity: "common", damage: 11, element: "fire" },
@@ -297,12 +300,38 @@
     };
 
     const leagues = [
-        { name: "🥉 Бронза", min: 0, max: 500, reward: 100 },
-        { name: "🥈 Серебро", min: 500, max: 1200, reward: 250 },
-        { name: "🥇 Золото", min: 1200, max: 2000, reward: 500 },
-        { name: "💎 Платина", min: 2000, max: 3000, reward: 1000 },
-        { name: "🐉 Алмаз", min: 3000, max: 5000, reward: 2000 },
-        { name: "👑 Легенда", min: 5000, max: 999999, reward: 5000 }
+        { name: "🥉 Бронза", min: 0, max: 500, reward: 100, lossPenalty: 2 },
+        { name: "🥈 Серебро", min: 500, max: 1200, reward: 250, lossPenalty: 3 },
+        { name: "🥇 Золото", min: 1200, max: 2000, reward: 500, lossPenalty: 4 },
+        { name: "💎 Платина", min: 2000, max: 3000, reward: 1000, lossPenalty: 5 },
+        { name: "🐉 Алмаз", min: 3000, max: 5000, reward: 2000, lossPenalty: 6 },
+        { name: "👑 Легенда", min: 5000, max: 999999, reward: 5000, lossPenalty: 8 }
+    ];
+
+    // Цепочка наград за кубки
+    const trophyRewards = [
+        { trophies: 10, reward: 50, type: "coins" },
+        { trophies: 20, reward: 50, type: "coins" },
+        { trophies: 30, reward: 50, type: "coins" },
+        { trophies: 40, reward: 50, type: "coins" },
+        { trophies: 50, reward: 1, type: "legendary_card" },
+        { trophies: 75, reward: 100, type: "coins" },
+        { trophies: 100, reward: 1, type: "mythic_card" },
+        { trophies: 125, reward: 100, type: "coins" },
+        { trophies: 150, reward: 100, type: "coins" },
+        { trophies: 175, reward: 100, type: "coins" },
+        { trophies: 200, reward: 1, type: "legendary_card" },
+        { trophies: 250, reward: 200, type: "coins" },
+        { trophies: 300, reward: 200, type: "coins" },
+        { trophies: 350, reward: 200, type: "coins" },
+        { trophies: 400, reward: 1, type: "mythic_card" },
+        { trophies: 450, reward: 300, type: "coins" },
+        { trophies: 500, reward: 300, type: "coins" },
+        { trophies: 600, reward: 1, type: "legendary_card" },
+        { trophies: 700, reward: 400, type: "coins" },
+        { trophies: 800, reward: 500, type: "coins" },
+        { trophies: 900, reward: 600, type: "coins" },
+        { trophies: 1000, reward: 1, type: "mythic_card" }
     ];
 
     let currentUser = null;
@@ -315,24 +344,31 @@
     let battleInterval = null;
     let isResolving = false;
 
-    function getRandomCardByElement(element) {
+    function getRandomCardByElement(element, excludeLegendaryMythic = false) {
         let filtered = allCards.filter(c => c.element === element);
-        if (filtered.length === 0) filtered = allCards;
+        if (excludeLegendaryMythic) {
+            filtered = filtered.filter(c => c.rarity !== "legendary" && c.rarity !== "mythic");
+        }
+        if (filtered.length === 0) filtered = allCards.filter(c => c.element === element);
         return { ...filtered[Math.floor(Math.random() * filtered.length)] };
     }
 
-    function getRandomCard() {
-        return { ...allCards[Math.floor(Math.random() * allCards.length)] };
+    function getRandomCard(excludeLegendaryMythic = false) {
+        let filtered = [...allCards];
+        if (excludeLegendaryMythic) {
+            filtered = filtered.filter(c => c.rarity !== "legendary" && c.rarity !== "mythic");
+        }
+        return { ...filtered[Math.floor(Math.random() * filtered.length)] };
     }
 
     function getStarterCards() {
         let cards = [];
-        let shuffled = [...allCards];
+        let shuffled = [...allCards.filter(c => c.rarity !== "legendary" && c.rarity !== "mythic")];
         for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-        for (let i = 0; i < 6; i++) cards.push({ ...shuffled[i], count: 1 });
+        for (let i = 0; i < 6; i++) cards.push({ ...shuffled[i], count: 2 }); // по 2 экземпляра
         return cards;
     }
 
@@ -349,6 +385,47 @@
     function computeDamage(attacker, defenderElem) {
         let mult = elementBonus[attacker.element][defenderElem] || 1;
         return Math.floor(attacker.damage * mult);
+    }
+
+    function getLossPenalty(leagueName) {
+        let league = leagues.find(l => l.name === leagueName);
+        return league ? league.lossPenalty : 2;
+    }
+
+    function getLeagueByTrophies(trophies) {
+        return leagues.find(l => trophies >= l.min && trophies < l.max) || leagues[leagues.length - 1];
+    }
+
+    async function checkAndClaimRewards() {
+        if (!currentUser) return;
+        if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
+        
+        for (let reward of trophyRewards) {
+            if (currentUser.trophies >= reward.trophies && !currentUser.claimedRewards.includes(reward.trophies)) {
+                if (reward.type === "coins") {
+                    currentUser.currency += reward.reward;
+                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получено ${reward.reward} монет!`);
+                } else if (reward.type === "legendary_card") {
+                    let legendaryCards = allCards.filter(c => c.rarity === "legendary");
+                    let randomLegendary = { ...legendaryCards[Math.floor(Math.random() * legendaryCards.length)], count: 1 };
+                    let existing = currentUser.collection.find(c => c.name === randomLegendary.name);
+                    if (existing) existing.count++;
+                    else currentUser.collection.push(randomLegendary);
+                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получена легендарная карта: ${randomLegendary.name}!`);
+                } else if (reward.type === "mythic_card") {
+                    let mythicCards = allCards.filter(c => c.rarity === "mythic");
+                    let randomMythic = { ...mythicCards[Math.floor(Math.random() * mythicCards.length)], count: 1 };
+                    let existing = currentUser.collection.find(c => c.name === randomMythic.name);
+                    if (existing) existing.count++;
+                    else currentUser.collection.push(randomMythic);
+                    alert(`🏆 Достигнуто ${reward.trophies} кубков!\n🎁 Получена мифическая карта: ${randomMythic.name}!`);
+                }
+                currentUser.claimedRewards.push(reward.trophies);
+                await saveUser();
+                renderCards();
+                updateUI();
+            }
+        }
     }
 
     function showOpponentCards(cards) {
@@ -393,7 +470,8 @@
             currency: currentUser.currency,
             trophies: currentUser.trophies,
             collection: currentUser.collection,
-            deck: currentUser.deck
+            deck: currentUser.deck,
+            claimedRewards: currentUser.claimedRewards || []
         });
     }
 
@@ -407,6 +485,7 @@
             currentUser = data;
             if (!currentUser.collection) currentUser.collection = [];
             if (!currentUser.deck) currentUser.deck = [];
+            if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
             updateUI();
             renderCards();
         }
@@ -419,7 +498,7 @@
         if (!currentUser) return;
         document.getElementById("currencyDisplay").innerHTML = `💰 ${currentUser.currency}`;
         document.getElementById("trophiesDisplay").innerHTML = `🏆 ${currentUser.trophies}`;
-        let league = leagues.find(l => currentUser.trophies >= l.min && currentUser.trophies < l.max) || leagues[5];
+        let league = getLeagueByTrophies(currentUser.trophies);
         document.getElementById("leagueDisplay").innerHTML = league.name;
         document.getElementById("userNameDisplay").innerHTML = currentUser.username;
     }
@@ -457,12 +536,35 @@
         renderCards();
         saveUser();
     };
-    window.buyPack = async (element) => {
-        if (currentUser.currency < 100) { alert("Мало монет!"); return; }
-        currentUser.currency -= 100;
+    
+    window.buyPack = async (element, price) => {
+        if (currentUser.currency < price) { alert("Мало монет!"); return; }
+        currentUser.currency -= price;
         let newCards = [];
         for (let i = 0; i < 3; i++) {
             let card = getRandomCardByElement(element);
+            newCards.push(card);
+        }
+        for (let card of newCards) {
+            let existing = currentUser.collection.find(c => c.name === card.name);
+            if (existing) existing.count++;
+            else currentUser.collection.push({ ...card, count: 1 });
+        }
+        await saveUser();
+        renderCards();
+        updateUI();
+        let modal = document.getElementById("packModal");
+        document.getElementById("packCardsList").innerHTML = newCards.map(c => `<div class="pack-card card ${c.rarity}"><b>${c.name}</b><br>⚔️ ${c.damage}<br>${c.element}</div>`).join('');
+        modal.classList.remove("hidden");
+        document.getElementById("closePackBtn").onclick = () => modal.classList.add("hidden");
+    };
+
+    window.buyRandomPack = async () => {
+        if (currentUser.currency < 150) { alert("Мало монет!"); return; }
+        currentUser.currency -= 150;
+        let newCards = [];
+        for (let i = 0; i < 3; i++) {
+            let card = getRandomCard();
             newCards.push(card);
         }
         for (let card of newCards) {
@@ -545,7 +647,6 @@
         currentBattleId = data.id;
         let isPlayer1 = data.player1_id === currentUser.id;
         
-        // Обновляем отряды свежими картами из колоды
         let freshSquad1 = getRandomSquad();
         let freshSquad2 = getRandomSquad();
         
@@ -690,35 +791,11 @@
             await showRoundResult(data.player1_username, p1Damage, data.player2_username, p2Damage, winnerName);
             
             if (data.round >= 3) {
-                let finalData = (await sb.from("battles").select("*").eq("id", currentBattleId).single()).data;
-                let isPlayer1Winner = finalData.player1_id === currentUser.id ? 
-                    (finalData.player1_score > finalData.player2_score) : 
-                    (finalData.player2_score > finalData.player1_score);
-                
-                await sb.from("battles").update({
-                    status: "finished",
-                    winner_id: isPlayer1Winner ? currentUser.id : (finalData.player1_id === currentUser.id ? finalData.player2_id : finalData.player1_id)
-                }).eq("id", currentBattleId);
-                
-                let trophies = isPlayer1Winner ? 25 : -8;
-                let coins = isPlayer1Winner ? 50 : 0;
-                currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
-                currentUser.currency += coins;
-                await saveUser();
-                updateUI();
-                alert(`${isPlayer1Winner ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 ${trophies > 0 ? "+" : ""}${trophies}\n💰 +${coins}`);
-                
-                clearInterval(battleInterval);
-                document.getElementById("battlePanel").classList.remove("active");
-                document.getElementById("lobbyPanel").classList.add("active");
-                loadLobby();
-                currentBattle = null;
-                currentBattleId = null;
+                await endBattle();
                 isResolving = false;
                 return;
             }
             
-            // Обновляем отряды для следующего раунда
             let newSquad1 = getRandomSquad();
             let newSquad2 = getRandomSquad();
             
@@ -740,58 +817,73 @@
             isResolving = false;
         }
     }
+    
+    async function endBattle() {
+        let playerWon = currentBattle.playerScore > currentBattle.opponentScore;
+        
+        let league = getLeagueByTrophies(currentUser.trophies);
+        let lossPenalty = getLossPenalty(league.name);
+        
+        let trophies = playerWon ? 10 : -lossPenalty;
+        let coins = playerWon ? 50 : 0;
+        
+        currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
+        currentUser.currency += coins;
+        
+        await saveUser();
+        updateUI();
+        await checkAndClaimRewards();
+        
+        alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
+        
+        clearInterval(battleInterval);
+        document.getElementById("battlePanel").classList.remove("active");
+        document.getElementById("lobbyPanel").classList.add("active");
+        loadLobby();
+        currentBattle = null;
+        currentBattleId = null;
+    }
 
- function startBattleInterval() {
-    if (battleInterval) clearInterval(battleInterval);
-    battleInterval = setInterval(async () => {
-        if (!currentBattleId) return;
-        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-        if (error || !data) return;
-        
-        if (data.status === "finished") {
-            clearInterval(battleInterval);
-            return;
-        }
-        
-        let isPlayer1 = data.player1_id === currentUser.id;
-        let isMyTurn = (data.current_turn === currentUser.id);
-        
-        // Обновляем счёт и раунд
-        document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
-        document.getElementById("roundNum").innerHTML = data.round;
-        
-        // ПОКАЗЫВАЕМ КАРТЫ ПРОТИВНИКА, ЕСЛИ ОН ИХ УЖЕ ВЫБРАЛ
-        let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
-        
-        // ВАЖНО: показываем карты противника, если они есть, и НЕ перерисовываем их впустую
-        if (opponentSelected && opponentSelected.length > 0) {
-            // Проверяем, не показываем ли мы уже эти карты
-            let currentOpponentHtml = document.getElementById("opponentCardsField").innerHTML;
-            let shouldUpdate = !currentOpponentHtml.includes(opponentSelected[0]?.name || "");
+    function startBattleInterval() {
+        if (battleInterval) clearInterval(battleInterval);
+        battleInterval = setInterval(async () => {
+            if (!currentBattleId) return;
+            let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+            if (error || !data) return;
             
-            if (shouldUpdate) {
+            if (data.status === "finished") {
+                clearInterval(battleInterval);
+                return;
+            }
+            
+            let isPlayer1 = data.player1_id === currentUser.id;
+            let isMyTurn = (data.current_turn === currentUser.id);
+            
+            document.getElementById("scoreDisplay").innerHTML = `${isPlayer1 ? data.player1_score : data.player2_score}:${isPlayer1 ? data.player2_score : data.player1_score}`;
+            document.getElementById("roundNum").innerHTML = data.round;
+            
+            let opponentSelected = isPlayer1 ? data.player2_selected : data.player1_selected;
+            
+            if (opponentSelected && opponentSelected.length > 0 && !isMyTurn) {
                 document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ ПРОТИВНИКА (видны)";
                 showOpponentCards(opponentSelected);
+            } else if (!isMyTurn) {
+                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
+                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
+            } else if (isMyTurn) {
+                document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
+                document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
             }
-        } else if (!isMyTurn && !opponentSelected) {
-            // Только если нет карт и не мой ход
-            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (ожидание)";
-            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
-        } else if (isMyTurn && !opponentSelected) {
-            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-            document.getElementById("opponentCardsField").innerHTML = Array(6).fill().map(() => `<div class="card-slot enemy-hidden">❓❓❓</div>`).join('');
-        }
-        
-        // Если ход поменялся или раунд — обновляем UI
-        let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
-        let roundChanged = currentBattle && currentBattle.round !== data.round;
-        if (currentTurnChanged || roundChanged || !currentBattle) {
-            startBattleFromData(data);
-        }
-        
-        await checkBothReadyAndResolve();
-    }, 1000);
-}
+            
+            let currentTurnChanged = currentBattle && currentBattle.currentTurn !== data.current_turn;
+            let roundChanged = currentBattle && currentBattle.round !== data.round;
+            if (currentTurnChanged || roundChanged || !currentBattle) {
+                startBattleFromData(data);
+            }
+            
+            await checkBothReadyAndResolve();
+        }, 1000);
+    }
 
     function showBattleScreen() {
         document.getElementById("battlePanel").classList.add("active");
@@ -927,18 +1019,20 @@
         
         if (currentBattle.round === 3) {
             let won = currentBattle.playerScore > currentBattle.opponentScore;
-            let trophies = won ? 25 : -8, coins = won ? 100 : 0;
-            currentUser.trophies = Math.max(0, currentUser.trophies + trophies);
+            let coins = won ? 10 : 0; // Бот даёт 10 монет за победу, 0 за поражение
             currentUser.currency += coins;
-            await saveUser(); updateUI();
-            alert(`${won ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 ${trophies > 0 ? "+" : ""}${trophies}\n💰 +${coins}`);
+            await saveUser();
+            updateUI();
+            alert(`${won ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n💰 Монеты: +${coins}`);
             document.getElementById("battlePanel").classList.remove("active");
-            document.getElementById("lobbyPanel").classList.add("active"); loadLobby();
+            document.getElementById("lobbyPanel").classList.add("active"); 
+            loadLobby();
             currentBattle = null;
         } else {
             currentBattle.round++;
             document.getElementById("roundNum").innerHTML = currentBattle.round;
-            currentSquad = getRandomSquad(); currentSelected = [];
+            currentSquad = getRandomSquad(); 
+            currentSelected = [];
             updateBattleDisplayBot();
             document.getElementById("battleLog").innerHTML = `Раунд ${currentBattle.round}. Выбери 4 карты!`;
         }
@@ -959,7 +1053,8 @@
         let { data, error } = await sb.from("users").insert({ 
             username, password_hash: hash,
             currency: 0, trophies: 0, 
-            collection: starterCards, deck: starterDeck 
+            collection: starterCards, deck: starterDeck,
+            claimedRewards: []
         }).select().single();
         
         if (error) { alert("Ошибка: " + error.message); return; }
@@ -982,6 +1077,7 @@
         let { data, error } = await sb.from("users").select("*").eq("username", username).eq("password_hash", hash).single();
         if (error || !data) { alert("Неверно!"); return; }
         currentUser = data; 
+        if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
         saveSession(); 
         updateUI(); 
         renderCards();
@@ -999,7 +1095,31 @@
     document.getElementById("toDeckBtn").onclick = () => { document.getElementById("deckPanel").classList.add("active"); document.getElementById("lobbyPanel").classList.remove("active"); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("shopPanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); renderCards(); };
     document.getElementById("toShopBtn").onclick = () => { document.getElementById("shopPanel").classList.add("active"); document.getElementById("deckPanel").classList.remove("active"); document.getElementById("lobbyPanel").classList.remove("active"); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); };
     document.getElementById("toLobbyBtn").onclick = () => { document.getElementById("lobbyPanel").classList.add("active"); document.getElementById("deckPanel").classList.remove("active"); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("shopPanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); loadLobby(); };
-    document.getElementById("leagueBtn").onclick = () => { let league = leagues.find(l => currentUser.trophies >= l.min && currentUser.trophies < l.max) || leagues[5]; document.getElementById("leagueInfo").innerHTML = `<div style="background:#00000055; border-radius:24px; padding:20px;"><h3>${league.name}</h3><p>🎁 Награда за лигу: ${league.reward} монет</p></div>`; document.getElementById("leaguePanel").classList.add("active"); document.getElementById("lobbyPanel").classList.remove("active"); document.getElementById("deckPanel").classList.remove("active"); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("shopPanel").classList.remove("active"); document.getElementById("battlePanel").classList.remove("active"); };
+    document.getElementById("leagueBtn").onclick = () => { 
+        let league = getLeagueByTrophies(currentUser.trophies);
+        let next = leagues[leagues.indexOf(league) + 1];
+        let progress = next ? ((currentUser.trophies - league.min) / (league.max - league.min) * 100) : 100;
+        document.getElementById("leagueInfo").innerHTML = `
+            <div style="background:#00000055; border-radius:24px; padding:20px;">
+                <h3>${league.name}</h3>
+                <div style="height:20px; background:#333; border-radius:20px; margin:10px 0">
+                    <div style="width:${Math.min(100, progress)}%; background:gold; height:20px; border-radius:20px;">${currentUser.trophies}/${next ? league.max : "∞"}</div>
+                </div>
+                <p>🎁 Награда за достижение лиги: ${league.reward} монет</p>
+                <p>⚔️ Поражение в PvP: -${league.lossPenalty} кубков</p>
+                <h4>Все лиги:</h4>
+                ${leagues.map(l => `<div>${l.name} (${l.min}–${l.max === 999999 ? "∞" : l.max}) → 🎁 ${l.reward}💰 | ⚔️ -${l.lossPenalty}</div>`).join('')}
+                <h4 style="margin-top:20px;">🏆 Награды за кубки:</h4>
+                ${trophyRewards.map(r => `<div>🏆 ${r.trophies} → ${r.type === "coins" ? r.reward + "💰" : r.type === "legendary_card" ? "✨ Легендарная карта" : "⭐ Мифическая карта"}</div>`).join('')}
+            </div>
+        `;
+        document.getElementById("leaguePanel").classList.add("active"); 
+        document.getElementById("lobbyPanel").classList.remove("active"); 
+        document.getElementById("deckPanel").classList.remove("active"); 
+        document.getElementById("waitingPanel").classList.remove("active"); 
+        document.getElementById("shopPanel").classList.remove("active"); 
+        document.getElementById("battlePanel").classList.remove("active"); 
+    };
     document.getElementById("botBattleBtn").onclick = startBotBattle;
     document.getElementById("createLobbyBtn").onclick = createBattle;
     document.getElementById("cancelBattleBtn").onclick = async () => { if (currentBattleId) await cancelBattle(currentBattleId); clearInterval(waitingInterval); document.getElementById("waitingPanel").classList.remove("active"); document.getElementById("lobbyPanel").classList.add("active"); loadLobby(); currentBattleId = null; };
