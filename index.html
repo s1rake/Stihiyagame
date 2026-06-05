@@ -646,6 +646,56 @@
         }).join('');
     }
 
+ async function createBattle() {
+    if (!currentUser.deck || currentUser.deck.length < 6) { 
+        alert("Собери 6+ карт в колоду!"); 
+        return; 
+    }
+    
+    let code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    let squad = getRandomSquad();
+    
+    let { data, error } = await sb.from("battles").insert({
+        battle_code: code,
+        player1_id: currentUser.id,
+        player1_username: currentUser.username,
+        player1_element: currentUser.element,
+        player1_squad: squad,
+        status: "waiting",
+        round: 1,
+        player1_score: 0,
+        player2_score: 0,
+        current_turn: currentUser.id
+    }).select().single();
+    
+    if (error) { 
+        alert("Ошибка: " + error.message); 
+        return; 
+    }
+    
+    currentBattleId = data.id;
+    document.getElementById("waitingCode").innerText = code;
+    document.getElementById("waitingPanel").classList.add("active");
+    document.getElementById("lobbyPanel").classList.remove("active");
+    
+    if (waitingInterval) clearInterval(waitingInterval);
+    waitingInterval = setInterval(async () => {
+        let { data: b } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+        if (b && b.status === "active" && b.player2_id) {
+            clearInterval(waitingInterval);
+            startBattle(b.id);
+        }
+    }, 1000);
+}
+ async function startBattle(battleId) {
+    currentBattleId = battleId;
+    if (battleInterval) clearInterval(battleInterval);
+    battleInterval = setInterval(async () => {
+        await updateBattle();
+    }, 1000);
+    await updateBattle();
+}
+
     window.joinBattle = async (battleId) => {
         if (!currentUser.deck || currentUser.deck.length < 6) { alert("Собери 6+ карт в колоду!"); return; }
         let squad = getRandomSquad();
