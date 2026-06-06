@@ -893,7 +893,12 @@ if (data.player1_selected && data.player2_selected && data.player1_ready && data
     let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
     let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
     
-    console.log("attackerElem:", attackerElem, "defenderElem:", defenderElem);
+    // ДОБАВЬТЕ ЭТО:
+    console.log("ЭЛЕМЕНТЫ ИГРОКОВ:");
+    console.log("Атакующий игрок (элемент):", attackerElem);
+    console.log("Защитник игрок (элемент):", defenderElem);
+    console.log("Карты атакующего:", attackerCards.map(c => `${c.name}(${c.element})`));
+    console.log("Карты защитника:", defenderCards.map(c => `${c.name}(${c.element})`));
     
     let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
     let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
