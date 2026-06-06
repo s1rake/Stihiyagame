@@ -519,31 +519,43 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
     }
 
     // ===== РАБОТА С БД =====
+// Обновите функцию saveUser с подробным логированием:
 async function saveUser() {
-    if (!currentUser) return;
-    console.log("Сохраняем пользователя:", currentUser.username);
+    if (!currentUser) {
+        console.error("saveUser: currentUser is null");
+        return;
+    }
     
-    const userData = {
-        id: currentUser.id,
-        username: currentUser.username,
-        password_hash: currentUser.password_hash,
-        element: currentUser.element || 'fire',
-        currency: currentUser.currency || 0,
-        trophies: currentUser.trophies || 0,
-        collection: currentUser.collection || [],
-        deck: currentUser.deck || [],
-        claimed_rewards: currentUser.claimedRewards || []
-    };
+    console.log("=== СОХРАНЕНИЕ ===");
+    console.log("ID:", currentUser.id);
+    console.log("Username:", currentUser.username);
+    console.log("Currency:", currentUser.currency);
+    console.log("Trophies:", currentUser.trophies);
+    console.log("Collection length:", currentUser.collection?.length);
+    console.log("Deck length:", currentUser.deck?.length);
+    console.log("claimedRewards:", currentUser.claimedRewards);
     
-    const { error } = await sb
-        .from("game_users")
-        .upsert(userData, { onConflict: 'id' });
-    
-    if (error) {
-        console.error("Ошибка сохранения:", error);
-        alert("Ошибка сохранения! " + error.message);
-    } else {
-        console.log("Сохранено успешно!");
+    try {
+        const { data, error } = await sb
+            .from("game_users")
+            .update({
+                currency: currentUser.currency || 0,
+                trophies: currentUser.trophies || 0,
+                collection: currentUser.collection || [],
+                deck: currentUser.deck || [],
+                "claimedRewards": currentUser.claimedRewards || [],
+                element: currentUser.element || 'fire'
+            })
+            .eq("id", currentUser.id)
+            .select();
+        
+        if (error) {
+            console.error("Ошибка сохранения:", error);
+        } else {
+            console.log("Сохранено успешно! Ответ:", data);
+        }
+    } catch (e) {
+        console.error("Исключение при сохранении:", e);
     }
 }
 
