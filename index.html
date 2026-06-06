@@ -831,162 +831,192 @@ async function loadUser(userId) {
         await updateBattle();
     }
 
-    async function updateBattle() {
-        if (!currentBattleId) return;
-        
-        let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
-        if (error || !data) return;
-        
-        currentBattle = data;
-        let isPlayer1 = data.player1_id === currentUser.id;
-        let isMyTurn = (data.current_turn === currentUser.id);
-        let round = data.round;
-        
-        document.getElementById("scoreDisplay").innerHTML = `${data.player1_score}:${data.player2_score}`;
-        document.getElementById("roundNum").innerHTML = round;
-        document.getElementById("battleOpponentName").innerHTML = isPlayer1 ? data.player2_username : data.player1_username;
-        
-        let isAttacker = (round === 1 || round === 3) ? isPlayer1 : !isPlayer1;
-        
-        console.log("=== updateBattle ===");
-        console.log("round:", round, "isAttacker:", isAttacker, "isMyTurn:", isMyTurn);
-        
-        // ===== СЛУЧАЙ 1: РАСЧЁТ РАУНДА =====
-        if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
-            console.log("Режим: РАСЧЁТ РАУНДА");
-            
-            let isPlayer1Attacker = (round === 1 || round === 3);
-            let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
-            let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
-            let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
-            let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
-            let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
-            let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
-            let defenderName = isPlayer1Attacker ? data.player2_username : data.player1_username;
-            
-            let newScore1 = data.player1_score;
-            let newScore2 = data.player2_score;
-            if (result.roundWinner === "Атакующий") {
-                if (isPlayer1Attacker) newScore1++; else newScore2++;
-            } else if (result.roundWinner === "Защитник") {
-                if (!isPlayer1Attacker) newScore1++; else newScore2++;
-            }
-            
-            await sb.from("battles").update({
-                player1_score: newScore1,
-                player2_score: newScore2,
-                player1_ready: false,
-                player2_ready: false
-            }).eq("id", currentBattleId);
-            
-            await showRoundResult(attackerName, result.attackerTotal, defenderName, result.defenderTotal, result.results, result.roundWinner);
-            
-            if (round >= 3) {
-                let playerWon = (isPlayer1 && newScore1 > newScore2) || (!isPlayer1 && newScore2 > newScore1);
-                let league = getLeagueByTrophies(currentUser.trophies);
-                let lossPenalty = getLossPenalty(league.name);
-                let trophies = playerWon ? 10 : -lossPenalty;
-                let coins = playerWon ? 50 : 0;
-                
-                currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
-                currentUser.currency = (currentUser.currency || 0) + coins;
-                
-                await saveUser();
-                updateUI();
-                await checkAndClaimRewards();
-                
-                alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
-                
-                await sb.from("battles").update({ status: "finished" }).eq("id", currentBattleId);
-                document.getElementById("battlePanel").classList.remove("active");
-                document.getElementById("lobbyPanel").classList.add("active");
-                loadLobby();
-                clearInterval(battleInterval);
-                currentBattleId = null;
-                currentSquad = [];
-                currentSelected = [];
-                window.cardsLoaded = false;
-                return;
-            }
-            
-            let newSquad1 = getRandomSquad();
-            let newSquad2 = getRandomSquad();
-            let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
-            
-            await sb.from("battles").update({
-                player1_squad: newSquad1,
-                player2_squad: newSquad2,
-                round: round + 1,
-                current_turn: nextTurn,
-                player1_selected: null,
-                player2_selected: null,
-                player1_ready: false,
-                player2_ready: false
-            }).eq("id", currentBattleId);
-            
-            currentSquad = [];
-            currentSelected = [];
-            window.cardsLoaded = false;
-        }
-        // ===== СЛУЧАЙ 2: Атакующий выбирает карты =====
-        else if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
-            console.log("Режим: АТАКУЮЩИЙ выбирает карты");
-            if (currentSquad.length === 0) {
-                currentSquad = isPlayer1 ? [...(data.player1_squad || [])] : [...(data.player2_squad || [])];
-                currentSelected = [];
-            }
-            document.getElementById("readyBtn").style.display = "block";
-            document.getElementById("readyBtn").disabled = false;
-            document.getElementById("readyBtn").innerHTML = "⚔️ АТАКОВАТЬ";
-            document.getElementById("waitingOpponentMsg").style.display = "none";
-            document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
-            document.getElementById("opponentCardsField").innerHTML = '';
-            document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
-            showMyCards();
-        }
-        // ===== СЛУЧАЙ 3: Защитник выбирает защиту =====
-        else if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
-            console.log("Режим: ЗАЩИТНИК выбирает защиту");
-            
-            let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
-            let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
-            let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
-            
-            if (attackerCards && attackerCards.length === 4) {
-                showOpponentCards(attackerCards);
-                document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
-            }
-            
-            if (currentSquad.length === 0 && mySquad && mySquad.length >= 4) {
-                currentSquad = [...mySquad];
-                currentSelected = [];
-                console.log("Загружены карты защитника:", currentSquad);
-                showMyCards();
-            }
-            
-            document.getElementById("readyBtn").style.display = "block";
-            document.getElementById("readyBtn").disabled = false;
-            document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
-            document.getElementById("waitingOpponentMsg").style.display = "none";
-            document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
-        }
-        // ===== СЛУЧАЙ 4: Ожидание =====
-        else {
-            document.getElementById("readyBtn").style.display = "none";
-            document.getElementById("waitingOpponentMsg").style.display = "block";
-            document.getElementById("opponentLabel").innerHTML = "❓ ОЖИДАНИЕ КАРТ";
-            document.getElementById("opponentCardsField").innerHTML = '';
-            document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание выбора карт от соперника...`;
-        }
-        
-        document.getElementById("battlePanel").classList.add("active");
-        document.getElementById("lobbyPanel").classList.remove("active");
-        document.getElementById("waitingPanel").classList.remove("active");
-        document.getElementById("deckPanel").classList.remove("active");
-        document.getElementById("shopPanel").classList.remove("active");
-        document.getElementById("leaguePanel").classList.remove("active");
-    }
+   // Замените ТОЛЬКО часть после показа результатов в функции updateBattle:
 
+async function updateBattle() {
+    if (!currentBattleId) return;
+    
+    let { data, error } = await sb.from("battles").select("*").eq("id", currentBattleId).single();
+    if (error || !data) return;
+    
+    currentBattle = data;
+    let isPlayer1 = data.player1_id === currentUser.id;
+    let isMyTurn = (data.current_turn === currentUser.id);
+    let round = data.round;
+    
+    document.getElementById("scoreDisplay").innerHTML = `${data.player1_score}:${data.player2_score}`;
+    document.getElementById("roundNum").innerHTML = round;
+    document.getElementById("battleOpponentName").innerHTML = isPlayer1 ? data.player2_username : data.player1_username;
+    
+    let isAttacker = (round === 1 || round === 3) ? isPlayer1 : !isPlayer1;
+    
+    // ===== РАСЧЁТ РАУНДА =====
+    if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
+        console.log("Режим: РАСЧЁТ РАУНДА");
+        
+        let isPlayer1Attacker = (round === 1 || round === 3);
+        let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
+        let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
+        let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
+        let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
+        let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
+        let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
+        let defenderName = isPlayer1Attacker ? data.player2_username : data.player1_username;
+        
+        let newScore1 = data.player1_score;
+        let newScore2 = data.player2_score;
+        if (result.roundWinner === "Атакующий") {
+            if (isPlayer1Attacker) newScore1++; else newScore2++;
+        } else if (result.roundWinner === "Защитник") {
+            if (!isPlayer1Attacker) newScore1++; else newScore2++;
+        }
+        
+        await sb.from("battles").update({
+            player1_score: newScore1,
+            player2_score: newScore2,
+            player1_ready: false,
+            player2_ready: false
+        }).eq("id", currentBattleId);
+        
+        // ПОКАЗЫВАЕМ РЕЗУЛЬТАТЫ ВСЕМ (и атакующему и защитнику)
+        await showRoundResult(attackerName, result.attackerTotal, defenderName, result.defenderTotal, result.results, result.roundWinner);
+        
+        // СРАЗУ ПОСЛЕ ПОКАЗА РЕЗУЛЬТАТОВ - СБРАСЫВАЕМ КАРТЫ
+        currentSquad = [];
+        currentSelected = [];
+        window.cardsLoaded = false;
+        
+        if (round >= 3) {
+            let playerWon = (isPlayer1 && newScore1 > newScore2) || (!isPlayer1 && newScore2 > newScore1);
+            let league = getLeagueByTrophies(currentUser.trophies);
+            let lossPenalty = getLossPenalty(league.name);
+            let trophies = playerWon ? 10 : -lossPenalty;
+            let coins = playerWon ? 50 : 0;
+            
+            currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
+            currentUser.currency = (currentUser.currency || 0) + coins;
+            
+            await saveUser();
+            updateUI();
+            await checkAndClaimRewards();
+            
+            alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
+            
+            await sb.from("battles").update({ status: "finished" }).eq("id", currentBattleId);
+            document.getElementById("battlePanel").classList.remove("active");
+            document.getElementById("lobbyPanel").classList.add("active");
+            loadLobby();
+            clearInterval(battleInterval);
+            currentBattleId = null;
+            return;
+        }
+        
+        // Генерируем новые squad для обоих игроков
+        let newSquad1 = getRandomSquadForPlayer(data.player1_id);
+        let newSquad2 = getRandomSquadForPlayer(data.player2_id);
+        let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
+        
+        await sb.from("battles").update({
+            player1_squad: newSquad1,
+            player2_squad: newSquad2,
+            round: round + 1,
+            current_turn: nextTurn,
+            player1_selected: null,
+            player2_selected: null,
+            player1_ready: false,
+            player2_ready: false
+        }).eq("id", currentBattleId);
+        
+        // Сбрасываем UI
+        document.getElementById("opponentCardsField").innerHTML = '';
+        document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА";
+        document.getElementById("readyBtn").style.display = "none";
+        document.getElementById("waitingOpponentMsg").style.display = "none";
+        document.getElementById("playerCardsField").innerHTML = '<div style="padding: 40px;">🔄 Загрузка новых карт...</div>';
+        
+        return;
+    }
+    
+    // ===== Атакующий выбирает карты =====
+    else if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
+        console.log("Режим: АТАКУЮЩИЙ выбирает карты");
+        
+        // ВАЖНО: Всегда загружаем свежий squad если карты не загружены
+        if (currentSquad.length === 0 || !window.cardsLoaded) {
+            let squad = isPlayer1 ? data.player1_squad : data.player2_squad;
+            currentSquad = squad ? [...squad] : [];
+            currentSelected = [];
+            window.cardsLoaded = true;
+            console.log("Загружен squad атакующего:", currentSquad);
+        }
+        
+        document.getElementById("readyBtn").style.display = "block";
+        document.getElementById("readyBtn").disabled = false;
+        document.getElementById("readyBtn").innerHTML = "⚔️ АТАКОВАТЬ";
+        document.getElementById("waitingOpponentMsg").style.display = "none";
+        document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА (скрыты)";
+        document.getElementById("opponentCardsField").innerHTML = '';
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
+        showMyCards();
+    }
+    // ===== Защитник выбирает защиту =====
+    else if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || 
+                          (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
+        console.log("Режим: ЗАЩИТНИК выбирает защиту");
+        
+        let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
+        let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
+        
+        // ВАЖНО: Загружаем свежий squad если карты не загружены
+        if (currentSquad.length === 0 || !window.cardsLoaded) {
+            let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+            currentSquad = mySquad ? [...mySquad] : [];
+            currentSelected = [];
+            window.cardsLoaded = true;
+            console.log("Загружен squad защитника:", currentSquad);
+        }
+        
+        if (attackerCards && attackerCards.length === 4) {
+            showOpponentCards(attackerCards);
+            document.getElementById("opponentLabel").innerHTML = "👁️ КАРТЫ АТАКУЮЩЕГО (видны)";
+        }
+        
+        document.getElementById("readyBtn").style.display = "block";
+        document.getElementById("readyBtn").disabled = false;
+        document.getElementById("readyBtn").innerHTML = "🛡️ ЗАЩИТИТЬСЯ";
+        document.getElementById("waitingOpponentMsg").style.display = "none";
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
+        showMyCards();
+    }
+    // ===== Ожидание =====
+    else {
+        document.getElementById("readyBtn").style.display = "none";
+        document.getElementById("waitingOpponentMsg").style.display = "block";
+        document.getElementById("opponentLabel").innerHTML = "❓ ОЖИДАНИЕ КАРТ";
+        document.getElementById("opponentCardsField").innerHTML = '';
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание выбора карт от соперника...`;
+    }
+    
+    document.getElementById("battlePanel").classList.add("active");
+    document.getElementById("lobbyPanel").classList.remove("active");
+    document.getElementById("waitingPanel").classList.remove("active");
+    document.getElementById("deckPanel").classList.remove("active");
+    document.getElementById("shopPanel").classList.remove("active");
+    document.getElementById("leaguePanel").classList.remove("active");
+}
+
+// Добавьте вспомогательную функцию для получения squad игрока
+async function getRandomSquadForPlayer(playerId) {
+    let { data } = await sb.from("game_users").select("deck").eq("id", playerId).single();
+    if (!data || !data.deck || data.deck.length === 0) return [];
+    
+    let shuffled = [...data.deck];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, 6);
+}
     async function submitReady() {
         if (currentSelected.length !== 4) { 
             alert("Выбери 4 карты!"); 
