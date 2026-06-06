@@ -304,9 +304,9 @@
 </div>
 
 <script>
-    const SB_URL = "https://cpfhtzhmwblkkhvyqiyi.supabase.co";
-    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
-    const sb = window.supabase.createClient(SB_URL, SB_KEY);
+const SB_URL = "https://cpfhtzhmwblkkhvyqiyi.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwZmh0emhtd2Jsa2todnlxaXlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzU1ODAsImV4cCI6MjA5NTc1MTU4MH0.ywnIk8FfoVbZD4q8GOaHcnGA8sXw2nU8M6Ru3OcTlOo";
+const sb = supabase.createClient(SB_URL, SB_KEY);
 
     const allCards = [
         { name: "Имолец", rarity: "common", damage: 10, element: "fire" },
@@ -519,47 +519,64 @@
     }
 
     // ===== РАБОТА С БД =====
-    async function saveUser() {
-        if (!currentUser) return;
-        console.log("Сохраняем пользователя:", {
-            id: currentUser.id,
-            username: currentUser.username,
-            element: currentUser.element,
-            currency: currentUser.currency,
-            trophies: currentUser.trophies
-        });
-        
-        const { error } = await sb.from("game_users").upsert({
-            id: currentUser.id,
-            username: currentUser.username,
-            password_hash: currentUser.password_hash,
-            element: currentUser.element,
-            currency: currentUser.currency || 0,
-            trophies: currentUser.trophies || 0,
-            collection: currentUser.collection || [],
-            deck: currentUser.deck || [],
-            claimedRewards: currentUser.claimedRewards || []
-        });
-        
-        if (error) console.error("Ошибка сохранения:", error);
-        else console.log("Сохранено успешно!");
+async function saveUser() {
+    if (!currentUser) return;
+    console.log("Сохраняем пользователя:", currentUser.username);
+    
+    const userData = {
+        id: currentUser.id,
+        username: currentUser.username,
+        password_hash: currentUser.password_hash,
+        element: currentUser.element || 'fire',
+        currency: currentUser.currency || 0,
+        trophies: currentUser.trophies || 0,
+        collection: currentUser.collection || [],
+        deck: currentUser.deck || [],
+        claimed_rewards: currentUser.claimedRewards || []
+    };
+    
+    const { error } = await sb
+        .from("game_users")
+        .upsert(userData, { onConflict: 'id' });
+    
+    if (error) {
+        console.error("Ошибка сохранения:", error);
+        alert("Ошибка сохранения! " + error.message);
+    } else {
+        console.log("Сохранено успешно!");
     }
+}
 
-    async function loadUser(userId) {
-        let { data, error } = await sb.from("game_users").select("*").eq("id", userId).single();
-        if (error) { console.error("Ошибка загрузки:", error); return; }
-        if (data) {
-            currentUser = data;
-            if (!currentUser.collection) currentUser.collection = [];
-            if (!currentUser.deck) currentUser.deck = [];
-            if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
-            if (currentUser.currency === undefined) currentUser.currency = 0;
-            if (currentUser.trophies === undefined) currentUser.trophies = 0;
-            console.log("Загружен пользователь:", currentUser);
-            updateUI();
-            renderCards();
-        }
+async function loadUser(userId) {
+    console.log("Загружаем пользователя с ID:", userId);
+    
+    const { data, error } = await sb
+        .from("game_users")
+        .select("*")
+        .eq("id", userId)
+        .single();
+    
+    if (error) {
+        console.error("Ошибка загрузки:", error);
+        alert("Ошибка загрузки данных!");
+        return;
     }
+    
+    if (data) {
+        currentUser = data;
+        // Инициализация массивов, если их нет
+        if (!currentUser.collection) currentUser.collection = [];
+        if (!currentUser.deck) currentUser.deck = [];
+        if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
+        if (!currentUser.currency) currentUser.currency = 0;
+        if (!currentUser.trophies) currentUser.trophies = 0;
+        if (!currentUser.element) currentUser.element = 'fire';
+        
+        console.log("Загружен пользователь:", currentUser.username);
+        updateUI();
+        renderCards();
+    }
+}
 
     function saveSession() { if (currentUser) localStorage.setItem("session", JSON.stringify({ userId: currentUser.id })); }
     function loadSession() { let session = localStorage.getItem("session"); if (session) loadUser(JSON.parse(session).userId); }
@@ -645,6 +662,37 @@
         modal.classList.remove("hidden");
         document.getElementById("closePackBtn").onclick = () => modal.classList.add("hidden");
     };
+
+    async function checkAndCreateTables() {
+    try {
+        // Проверяем существование таблицы game_users
+        const { error: checkError } = await sb
+            .from("game_users")
+            .select("id")
+            .limit(1);
+        
+        if (checkError) {
+            console.log("Таблицы не существуют. Создайте их через SQL Editor в Supabase:");
+            console.log(`
+                CREATE TABLE game_users (
+                    id BIGSERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    element TEXT DEFAULT 'fire',
+                    currency INTEGER DEFAULT 0,
+                    trophies INTEGER DEFAULT 0,
+                    collection JSONB DEFAULT '[]'::jsonb,
+                    deck JSONB DEFAULT '[]'::jsonb,
+                    claimed_rewards JSONB DEFAULT '[]'::jsonb,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            `);
+            alert("Таблицы не созданы! Выполните SQL запрос из консоли.");
+        }
+    } catch (e) {
+        console.error("Ошибка проверки таблиц:", e);
+    }
+}
 
     async function checkAndClaimRewards() {
         if (!currentUser) return;
@@ -1043,24 +1091,61 @@
     }
 
     // ===== АВТОРИЗАЦИЯ =====
-    async function register() {
-        let username = document.getElementById("regUsername").value.trim();
-        let password = document.getElementById("regPassword").value;
-        if (!username || !password) { alert("Заполни всё!"); return; }
-        let hash = btoa(password);
-        let { data: existing } = await sb.from("game_users").select("id").eq("username", username);
-        if (existing && existing.length > 0) { alert("Имя занято!"); return; }
-        let starterCards = getStarterCards();
-        let starterDeck = starterCards.map(c => ({ name: c.name, rarity: c.rarity, damage: c.damage, element: c.element }));
-        let element = ["fire", "water", "earth", "wind"][Math.floor(Math.random() * 4)];
-        let { data, error } = await sb.from("game_users").insert({ 
-            username, password_hash: hash, element: element,
-            currency: 0, trophies: 0, 
-            collection: starterCards, deck: starterDeck,
-            claimedRewards: []
-        }).select().single();
-        if (error) { alert("Ошибка: " + error.message); return; }
-        currentUser = data; 
+   async function register() {
+    let username = document.getElementById("regUsername").value.trim();
+    let password = document.getElementById("regPassword").value;
+    
+    if (!username || !password) { 
+        alert("Заполни все поля!"); 
+        return; 
+    }
+    
+    let hash = btoa(password);
+    
+    // Проверяем существование пользователя
+    const { data: existing } = await sb
+        .from("game_users")
+        .select("id")
+        .eq("username", username);
+    
+    if (existing && existing.length > 0) { 
+        alert("Имя занято!"); 
+        return; 
+    }
+    
+    let starterCards = getStarterCards();
+    let starterDeck = starterCards.map(c => ({ 
+        name: c.name, 
+        rarity: c.rarity, 
+        damage: c.damage, 
+        element: c.element 
+    }));
+    
+    let element = ["fire", "water", "earth", "wind"][Math.floor(Math.random() * 4)];
+    
+    const { data, error } = await sb
+        .from("game_users")
+        .insert({ 
+            username: username,
+            password_hash: hash, 
+            element: element,
+            currency: 0, 
+            trophies: 0, 
+            collection: starterCards, 
+            deck: starterDeck,
+            claimed_rewards: []
+        })
+        .select()
+        .single();
+    
+    if (error) { 
+        alert("Ошибка регистрации: " + error.message); 
+        console.error("Ошибка:", error);
+        return; 
+    }
+    
+    if (data) {
+        currentUser = data;
         saveSession(); 
         updateUI(); 
         renderCards();
@@ -1071,26 +1156,44 @@
         if (lobbyInterval) clearInterval(lobbyInterval);
         lobbyInterval = setInterval(loadLobby, 3000);
     }
+}
 
-    async function login() {
-        let username = document.getElementById("loginUsername").value.trim();
-        let password = document.getElementById("loginPassword").value;
-        let hash = btoa(password);
-        let { data, error } = await sb.from("game_users").select("*").eq("username", username).eq("password_hash", hash).single();
-        if (error || !data) { alert("Неверно!"); return; }
-        currentUser = data; 
-        if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
-        saveSession(); 
-        updateUI(); 
-        renderCards();
-        document.getElementById("authScreen").classList.remove("active");
-        document.getElementById("mainScreen").classList.add("active");
-        document.getElementById("lobbyPanel").classList.add("active");
-        loadLobby();
-        if (lobbyInterval) clearInterval(lobbyInterval);
-        lobbyInterval = setInterval(loadLobby, 3000);
+// Исправленная функция входа
+async function login() {
+    let username = document.getElementById("loginUsername").value.trim();
+    let password = document.getElementById("loginPassword").value;
+    let hash = btoa(password);
+    
+    const { data, error } = await sb
+        .from("game_users")
+        .select("*")
+        .eq("username", username)
+        .eq("password_hash", hash)
+        .single();
+    
+    if (error || !data) { 
+        alert("Неверный логин или пароль!"); 
+        return; 
     }
+    
+    currentUser = data;
+    if (!currentUser.claimedRewards) currentUser.claimedRewards = [];
+    if (!currentUser.collection) currentUser.collection = [];
+    if (!currentUser.deck) currentUser.deck = [];
+    
+    saveSession(); 
+    updateUI(); 
+    renderCards();
+    document.getElementById("authScreen").classList.remove("active");
+    document.getElementById("mainScreen").classList.add("active");
+    document.getElementById("lobbyPanel").classList.add("active");
+    loadLobby();
+    if (lobbyInterval) clearInterval(lobbyInterval);
+    lobbyInterval = setInterval(loadLobby, 3000);
+}
 
+// Вызов проверки таблиц при загрузке
+checkAndCreateTables();                                            
     // ===== СОБЫТИЯ =====
     document.getElementById("doRegisterBtn").onclick = register;
     document.getElementById("doLoginBtn").onclick = login;
