@@ -548,6 +548,7 @@ async function saveUser() {
         console.error("Исключение при сохранении:", e);
     }
 }
+    window.roundShown = false;
 
 async function loadUser(userId) {
     const { data, error } = await sb
@@ -1017,7 +1018,11 @@ async function submitReady() {
             : { player2_selected: currentSelected, current_turn: nextTurn };
         
         const { error } = await sb.from("battles").update(updateData).eq("id", currentBattleId);
-        if (error) { alert("Ошибка: " + error.message); return; }
+        if (error) { 
+            console.error("Ошибка:", error); 
+            alert("Ошибка: " + error.message); 
+            return; 
+        }
         
         document.getElementById("battleLog").innerHTML = `Ожидание выбора защиты от соперника...`;
     } else {
@@ -1026,7 +1031,11 @@ async function submitReady() {
             : { player2_selected: currentSelected, player1_ready: true, player2_ready: true };
         
         const { error } = await sb.from("battles").update(updateData).eq("id", currentBattleId);
-        if (error) { alert("Ошибка: " + error.message); return; }
+        if (error) { 
+            console.error("Ошибка:", error); 
+            alert("Ошибка: " + error.message); 
+            return; 
+        }
         
         document.getElementById("battleLog").innerHTML = `Ожидание расчёта раунда...`;
     }
@@ -1034,6 +1043,7 @@ async function submitReady() {
     document.getElementById("readyBtn").disabled = true;
     document.getElementById("readyBtn").innerHTML = "⏳ Ожидание...";
     window.cardsLoaded = false;
+    window.roundShown = false;
 }
 
 async function startBotBattle() {
