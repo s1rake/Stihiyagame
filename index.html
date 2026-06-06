@@ -423,17 +423,11 @@ function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defend
     let attackerTotal = 0, defenderTotal = 0;
     let results = [];
     
-    console.log("=== РАСЧЁТ РАУНДА ===");
-    console.log("Элемент атакующего:", attackerElem);
-    console.log("Элемент защитника:", defenderElem);
-    
     for (let i = 0; i < 4; i++) {
-        let attackDmg = computeDamage(attackerCards[i], defenderElem);
-        let defendDmg = computeDamage(defenderCards[i], attackerElem);
-        
-        console.log(`Слот ${i+1}:`);
-        console.log(`  Атака: ${attackerCards[i].name} (${attackerCards[i].element}, урон ${attackerCards[i].damage}) × ${elementBonus[attackerCards[i].element][defenderElem]} = ${attackDmg}`);
-        console.log(`  Защита: ${defenderCards[i].name} (${defenderCards[i].element}, урон ${defenderCards[i].damage}) × ${elementBonus[defenderCards[i].element][attackerElem]} = ${defendDmg}`);
+        // Урон карты атакующего зависит от элемента КАРТЫ защитника
+        let attackDmg = computeDamage(attackerCards[i], defenderCards[i].element);
+        // Урон карты защитника зависит от элемента КАРТЫ атакующего
+        let defendDmg = computeDamage(defenderCards[i], attackerCards[i].element);
         
         attackerTotal += attackDmg;
         defenderTotal += defendDmg;
@@ -447,6 +441,10 @@ function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defend
             winner: attackDmg > defendDmg ? "Атакующий" : defendDmg > attackDmg ? "Защитник" : "Ничья"
         });
     }
+    
+    let roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
+    return { attackerTotal, defenderTotal, results, roundWinner };
+}
     
     console.log(`ИТОГО: Атака ${attackerTotal} vs Защита ${defenderTotal}`);
     
