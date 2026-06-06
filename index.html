@@ -943,10 +943,12 @@ async function updateBattle() {
         return;
     }
     
-    // ===== АТАКУЮЩИЙ ВЫБИРАЕТ =====
-    if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected && !data.round_result) {
-        console.log("АТАКУЮЩИЙ выбирает карты");
-        
+   // ===== АТАКУЮЩИЙ ВЫБИРАЕТ =====
+if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected && !data.round_result) {
+    console.log("АТАКУЮЩИЙ выбирает карты");
+    
+    // ЗАГРУЖАЕМ ТОЛЬКО ОДИН РАЗ
+    if (!window.cardsLoaded) {
         let squad = isPlayer1 ? data.player1_squad : data.player2_squad;
         console.log("squad:", squad);
         
@@ -964,19 +966,22 @@ async function updateBattle() {
         document.getElementById("opponentCardsField").innerHTML = '';
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты АТАКУЕШЬ! Выбери 4 карты!`;
         showMyCards();
-        return;
     }
+    return;
+}
     
-    // ===== ЗАЩИТНИК ВЫБИРАЕТ =====
-    if (isMyTurn && !data.round_result && 
-        ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || 
-         (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
-        console.log("ЗАЩИТНИК выбирает карты");
-        
+// ===== ЗАЩИТНИК ВЫБИРАЕТ =====
+if (isMyTurn && !data.round_result && 
+    ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || 
+     (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
+    console.log("ЗАЩИТНИК выбирает карты");
+    
+    // ЗАГРУЖАЕМ ТОЛЬКО ОДИН РАЗ
+    if (!window.cardsLoaded) {
         let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
         let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
-        
         let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+        
         console.log("mySquad:", mySquad);
         
         if (mySquad && mySquad.length >= 4) {
@@ -996,8 +1001,9 @@ async function updateBattle() {
         document.getElementById("waitingOpponentMsg").style.display = "none";
         document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ты ЗАЩИЩАЕШЬСЯ! Выбери 4 карты для защиты!`;
         showMyCards();
-        return;
     }
+    return;
+}
     
     // ===== ОЖИДАНИЕ =====
     console.log("ОЖИДАНИЕ. isAttacker:", isAttacker, "isMyTurn:", isMyTurn);
