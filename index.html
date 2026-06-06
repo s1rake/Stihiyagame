@@ -401,15 +401,15 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
         return cards;
     }
 
-    function getRandomSquad() {
-        if (!currentUser?.deck?.length) return [];
-        let shuffled = [...currentUser.deck];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        return shuffled.slice(0, 6);
+function getRandomSquadForBattle(deck) {
+    if (!deck || deck.length < 6) return [];
+    let shuffled = [...deck];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
+    return shuffled.slice(0, 6);
+}
 
     function computeDamage(attacker, defenderElem) {
         let mult = elementBonus[attacker.element][defenderElem] || 1;
@@ -924,11 +924,12 @@ async function updateBattle() {
         }
         
         // Генерируем новые squad для обоих игроков
-        let newSquad1 = getRandomSquadForPlayer(data.player1_id);
-        let newSquad2 = getRandomSquadForPlayer(data.player2_id);
-        let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
+let player1Deck = (await sb.from("game_users").select("deck").eq("id", data.player1_id).single()).data?.deck || [];
+let player2Deck = (await sb.from("game_users").select("deck").eq("id", data.player2_id).single()).data?.deck || [];
+let newSquad1 = getRandomSquadForBattle(player1Deck);
+let newSquad2 = getRandomSquadForBattle(player2Deck);
         
-        await sb.from("battles").update({
+      await sb.from("battles").update({
             player1_squad: newSquad1,
             player2_squad: newSquad2,
             round: round + 1,
@@ -939,15 +940,14 @@ async function updateBattle() {
             player2_ready: false
         }).eq("id", currentBattleId);
         
-        // Сбрасываем UI
-        document.getElementById("opponentCardsField").innerHTML = '';
-        document.getElementById("opponentLabel").innerHTML = "❓ КАРТЫ ПРОТИВНИКА";
-        document.getElementById("readyBtn").style.display = "none";
-        document.getElementById("waitingOpponentMsg").style.display = "none";
-        document.getElementById("playerCardsField").innerHTML = '<div style="padding: 40px;">🔄 Загрузка новых карт...</div>';
+        // Сбрасываем состояние
+        currentSquad = [];
+        currentSelected = [];
+        window.cardsLoaded = false;
         
+        // Ждём 1 секунду чтобы база точно обновилась
+        await new Promise(resolve => setTimeout(resolve, 1000));
         return;
-    }
     
     // ===== Атакующий выбирает карты =====
     else if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
