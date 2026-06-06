@@ -846,125 +846,117 @@ async function updateBattle() {
     console.log("round:", round, "isPlayer1:", isPlayer1, "isAttacker:", isAttacker, "isMyTurn:", isMyTurn);
     console.log("current_turn:", data.current_turn, "my id:", currentUser.id);
     
-    // ===== ПОКАЗ РЕЗУЛЬТАТА =====
-    if (data.round_result && !window.roundShown) {
-        window.roundShown = true;
-        let res = data.round_result;
+ // ===== ПОКАЗ РЕЗУЛЬТАТА =====
+if (data.round_result && !window.roundShown) {
+    window.roundShown = true;
+    let res = data.round_result;
+    
+    await showRoundResult(res.attackerName, res.attackerTotal, res.defenderName, res.defenderTotal, res.results, res.roundWinner);
+    
+    window.roundShown = false;
+    
+    // Очищаем результат
+    await sb.from("battles").update({ round_result: null }).eq("id", currentBattleId);
+    
+    // Завершаем игру после 3 раунда
+    if (data.round >= 3) {
+        let playerWon = (isPlayer1 && data.player1_score > data.player2_score) || 
+                       (!isPlayer1 && data.player2_score > data.player1_score);
+        let isDraw = data.player1_score === data.player2_score;
         
-        await showRoundResult(res.attackerName, res.attackerTotal, res.defenderName, res.defenderTotal, res.results, res.roundWinner);
+        let league = getLeagueByTrophies(currentUser.trophies);
+        let lossPenalty = getLossPenalty(league.name);
+        let trophies = isDraw ? 0 : (playerWon ? 10 : -lossPenalty);
+        let coins = isDraw ? 25 : (playerWon ? 50 : 0);
         
-        if (isMyTurn) {
-            await sb.from("battles").update({ round_result: null }).eq("id", currentBattleId);
+        currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
+        currentUser.currency = (currentUser.currency || 0) + coins;
+        
+        await saveUser();
+        updateUI();
+        await checkAndClaimRewards();
+        
+        if (isDraw) {
+            alert(`🤝 НИЧЬЯ!\n🏆 Трофеи: 0\n💰 Монеты: +25`);
+        } else {
+            alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
         }
         
-        window.roundShown = false;
-        
-        if (data.round >= 3) {
-            let playerWon = (isPlayer1 && data.player1_score > data.player2_score) || 
-                           (!isPlayer1 && data.player2_score > data.player1_score);
-            let isDraw = data.player1_score === data.player2_score;
-            
-            let league = getLeagueByTrophies(currentUser.trophies);
-            let lossPenalty = getLossPenalty(league.name);
-            let trophies = isDraw ? 0 : (playerWon ? 10 : -lossPenalty);
-            let coins = isDraw ? 25 : (playerWon ? 50 : 0);
-            
-            currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
-            currentUser.currency = (currentUser.currency || 0) + coins;
-            
-            await saveUser();
-            updateUI();
-            await checkAndClaimRewards();
-            
-            if (isDraw) {
-                alert(`🤝 НИЧЬЯ!\n🏆 Трофеи: 0\n💰 Монеты: +25`);
-            } else {
-                alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
-            }
-            
-            await sb.from("battles").update({ status: "finished" }).eq("id", currentBattleId);
-            document.getElementById("battlePanel").classList.remove("active");
-            document.getElementById("lobbyPanel").classList.add("active");
-            loadLobby();
-            clearInterval(battleInterval);
-            currentBattleId = null;
-            currentSquad = [];
-            currentSelected = [];
-            window.cardsLoaded = false;
-            return;
-        }
-        
+        await sb.from("battles").update({ status: "finished" }).eq("id", currentBattleId);
+        document.getElementById("battlePanel").classList.remove("active");
+        document.getElementById("lobbyPanel").classList.add("active");
+        loadLobby();
+        clearInterval(battleInterval);
+        currentBattleId = null;
         currentSquad = [];
         currentSelected = [];
         window.cardsLoaded = false;
         return;
     }
     
-    // ===== РАСЧЁТ РАУНДА =====
-    if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
-        console.log("РАСЧЁТ РАУНДА", round);
-        
-        let isPlayer1Attacker = (round === 1 || round === 3);
-        let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
-        let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
-        let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
-        let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
-        
-        let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
-        let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
-        let defenderName = isPlayer1Attacker ? data.player2_username : data.player1_username;
-        
-        let newScore1 = data.player1_score;
-        let newScore2 = data.player2_score;
-        if (result.roundWinner === "Атакующий") {
-            if (isPlayer1Attacker) newScore1++; else newScore2++;
-        } else if (result.roundWinner === "Защитник") {
-            if (!isPlayer1Attacker) newScore1++; else newScore2++;
-        }
-        
-        console.log("Новый счёт:", newScore1, ":", newScore2);
-        
-        let updateData = {
-            player1_score: newScore1,
-            player2_score: newScore2,
-            player1_ready: false,
-            player2_ready: false,
-            round_result: {
-                attackerName: attackerName,
-                attackerTotal: result.attackerTotal,
-                defenderName: defenderName,
-                defenderTotal: result.defenderTotal,
-                results: result.results,
-                roundWinner: result.roundWinner
-            }
-        };
-        
-        if (round < 3) {
-            let player1Deck = (await sb.from("game_users").select("deck").eq("id", data.player1_id).single()).data?.deck || [];
-            let player2Deck = (await sb.from("game_users").select("deck").eq("id", data.player2_id).single()).data?.deck || [];
-            let newSquad1 = getRandomSquadForBattle(player1Deck);
-            let newSquad2 = getRandomSquadForBattle(player2Deck);
-            let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
-            
-            console.log("Новый раунд:", round + 1, "nextTurn:", nextTurn);
-            
-            updateData.player1_squad = newSquad1;
-            updateData.player2_squad = newSquad2;
-            updateData.round = round + 1;
-            updateData.current_turn = nextTurn;
-            updateData.player1_selected = null;
-            updateData.player2_selected = null;
-        }
-        
-        const { error: updateError } = await sb.from("battles").update(updateData).eq("id", currentBattleId);
-        if (updateError) console.error("Ошибка обновления:", updateError);
-        else console.log("Бой обновлён успешно");
-        
-        currentSquad = [];
-        currentSelected = [];
-        window.cardsLoaded = false;
-        return;
+    // Генерируем новые squad для следующего раунда
+    let player1Deck = (await sb.from("game_users").select("deck").eq("id", data.player1_id).single()).data?.deck || [];
+    let player2Deck = (await sb.from("game_users").select("deck").eq("id", data.player2_id).single()).data?.deck || [];
+    let newSquad1 = getRandomSquadForBattle(player1Deck);
+    let newSquad2 = getRandomSquadForBattle(player2Deck);
+    let nextTurn = (data.round === 1) ? data.player2_id : data.player1_id;
+    
+    await sb.from("battles").update({
+        player1_squad: newSquad1,
+        player2_squad: newSquad2,
+        round: data.round + 1,
+        current_turn: nextTurn,
+        player1_selected: null,
+        player2_selected: null
+    }).eq("id", currentBattleId);
+    
+    currentSquad = [];
+    currentSelected = [];
+    window.cardsLoaded = false;
+    return;
+}
+    
+  // ===== РАСЧЁТ РАУНДА =====
+if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
+    let isPlayer1Attacker = (round === 1 || round === 3);
+    let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
+    let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
+    let attackerElem = isPlayer1Attacker ? data.player1_element : data.player2_element;
+    let defenderElem = isPlayer1Attacker ? data.player2_element : data.player1_element;
+    
+    let result = calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem);
+    let attackerName = isPlayer1Attacker ? data.player1_username : data.player2_username;
+    let defenderName = isPlayer1Attacker ? data.player2_username : data.player1_username;
+    
+    let newScore1 = data.player1_score;
+    let newScore2 = data.player2_score;
+    if (result.roundWinner === "Атакующий") {
+        if (isPlayer1Attacker) newScore1++; else newScore2++;
+    } else if (result.roundWinner === "Защитник") {
+        if (!isPlayer1Attacker) newScore1++; else newScore2++;
     }
+    
+    // Сохраняем ТОЛЬКО счёт и результат, НЕ обновляем round
+    await sb.from("battles").update({
+        player1_score: newScore1,
+        player2_score: newScore2,
+        player1_ready: false,
+        player2_ready: false,
+        round_result: {
+            attackerName: attackerName,
+            attackerTotal: result.attackerTotal,
+            defenderName: defenderName,
+            defenderTotal: result.defenderTotal,
+            results: result.results,
+            roundWinner: result.roundWinner
+        }
+    }).eq("id", currentBattleId);
+    
+    currentSquad = [];
+    currentSelected = [];
+    window.cardsLoaded = false;
+    return;
+}
     
    // ===== АТАКУЮЩИЙ ВЫБИРАЕТ =====
 if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected && !data.round_result) {
