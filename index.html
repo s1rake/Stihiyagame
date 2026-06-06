@@ -415,18 +415,39 @@ function computeDamage(attacker, defenderElem) {
 function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem) {
     let attackerTotal = 0, defenderTotal = 0;
     let results = [];
+    
+    console.log("=== РАСЧЁТ РАУНДА ===");
+    console.log("Элемент атакующего:", attackerElem);
+    console.log("Элемент защитника:", defenderElem);
+    
     for (let i = 0; i < 4; i++) {
         let attackDmg = computeDamage(attackerCards[i], defenderElem);
         let defendDmg = computeDamage(defenderCards[i], attackerElem);
+        
+        console.log(`Слот ${i+1}:`);
+        console.log(`  Атака: ${attackerCards[i].name} (${attackerCards[i].element}, урон ${attackerCards[i].damage}) × ${elementBonus[attackerCards[i].element][defenderElem]} = ${attackDmg}`);
+        console.log(`  Защита: ${defenderCards[i].name} (${defenderCards[i].element}, урон ${defenderCards[i].damage}) × ${elementBonus[defenderCards[i].element][attackerElem]} = ${defendDmg}`);
+        
         attackerTotal += attackDmg;
         defenderTotal += defendDmg;
+        
         results.push({
             slot: i + 1,
-            attackerCard: attackerCards[i].name, attackerDamage: attackDmg,
-            defenderCard: defenderCards[i].name, defenderDamage: defendDmg,
+            attackerCard: attackerCards[i].name, 
+            attackerDamage: attackDmg,
+            defenderCard: defenderCards[i].name, 
+            defenderDamage: defendDmg,
             winner: attackDmg > defendDmg ? "Атакующий" : defendDmg > attackDmg ? "Защитник" : "Ничья"
         });
     }
+    
+    console.log(`ИТОГО: Атака ${attackerTotal} vs Защита ${defenderTotal}`);
+    
+    let roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
+    console.log("Победитель раунда:", roundWinner);
+    
+    return { attackerTotal, defenderTotal, results, roundWinner };
+}
     let roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
     return { attackerTotal, defenderTotal, results, roundWinner };
 }
@@ -814,13 +835,15 @@ if (data.round_result && !window.roundShown) {
     
     await showRoundResult(res.attackerName, res.attackerTotal, res.defenderName, res.defenderTotal, res.results, res.roundWinner);
     
+    // ТОЛЬКО ОДИН игрок очищает (тот у кого текущий ход был)
+    if (isMyTurn) {
+        await sb.from("battles").update({ round_result: null }).eq("id", currentBattleId);
+    }
+    
     window.roundShown = false;
     
     // Если это был последний раунд - завершаем игру
     if (data.round >= 3) {
-        // Очищаем результат
-        await sb.from("battles").update({ round_result: null }).eq("id", currentBattleId);
-        
         let playerWon = (isPlayer1 && data.player1_score > data.player2_score) || 
                        (!isPlayer1 && data.player2_score > data.player1_score);
         let league = getLeagueByTrophies(currentUser.trophies);
