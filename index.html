@@ -819,7 +819,11 @@ async function updateBattle() {
     
     let isAttacker = (round === 1 || round === 3) ? isPlayer1 : !isPlayer1;
     
-    // ===== ПОКАЗ РЕЗУЛЬТАТА ДЛЯ ОБОИХ ИГРОКОВ =====
+    console.log("=== updateBattle ===");
+    console.log("round:", round, "isPlayer1:", isPlayer1, "isAttacker:", isAttacker, "isMyTurn:", isMyTurn);
+    console.log("current_turn:", data.current_turn, "my id:", currentUser.id);
+    
+    // ===== ПОКАЗ РЕЗУЛЬТАТА =====
     if (data.round_result && !window.roundShown) {
         window.roundShown = true;
         let res = data.round_result;
@@ -832,7 +836,6 @@ async function updateBattle() {
         
         window.roundShown = false;
         
-        // Завершаем игру ТОЛЬКО после 3 раунда
         if (data.round >= 3) {
             let playerWon = (isPlayer1 && data.player1_score > data.player2_score) || 
                            (!isPlayer1 && data.player2_score > data.player1_score);
@@ -876,6 +879,8 @@ async function updateBattle() {
     
     // ===== РАСЧЁТ РАУНДА =====
     if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
+        console.log("РАСЧЁТ РАУНДА", round);
+        
         let isPlayer1Attacker = (round === 1 || round === 3);
         let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
         let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
@@ -894,6 +899,8 @@ async function updateBattle() {
             if (!isPlayer1Attacker) newScore1++; else newScore2++;
         }
         
+        console.log("Новый счёт:", newScore1, ":", newScore2);
+        
         let updateData = {
             player1_score: newScore1,
             player2_score: newScore2,
@@ -909,13 +916,14 @@ async function updateBattle() {
             }
         };
         
-        // Генерируем новые squad если не последний раунд
         if (round < 3) {
             let player1Deck = (await sb.from("game_users").select("deck").eq("id", data.player1_id).single()).data?.deck || [];
             let player2Deck = (await sb.from("game_users").select("deck").eq("id", data.player2_id).single()).data?.deck || [];
             let newSquad1 = getRandomSquadForBattle(player1Deck);
             let newSquad2 = getRandomSquadForBattle(player2Deck);
             let nextTurn = (round === 1) ? data.player2_id : data.player1_id;
+            
+            console.log("Новый раунд:", round + 1, "nextTurn:", nextTurn);
             
             updateData.player1_squad = newSquad1;
             updateData.player2_squad = newSquad2;
@@ -925,7 +933,9 @@ async function updateBattle() {
             updateData.player2_selected = null;
         }
         
-        await sb.from("battles").update(updateData).eq("id", currentBattleId);
+        const { error: updateError } = await sb.from("battles").update(updateData).eq("id", currentBattleId);
+        if (updateError) console.error("Ошибка обновления:", updateError);
+        else console.log("Бой обновлён успешно");
         
         currentSquad = [];
         currentSelected = [];
@@ -935,9 +945,13 @@ async function updateBattle() {
     
     // ===== АТАКУЮЩИЙ ВЫБИРАЕТ =====
     if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected && !data.round_result) {
-        if (currentSquad.length === 0 || !window.cardsLoaded) {
-            let squad = isPlayer1 ? data.player1_squad : data.player2_squad;
-            currentSquad = squad ? [...squad] : [];
+        console.log("АТАКУЮЩИЙ выбирает карты");
+        
+        let squad = isPlayer1 ? data.player1_squad : data.player2_squad;
+        console.log("squad:", squad);
+        
+        if (squad && squad.length >= 4) {
+            currentSquad = [...squad];
             currentSelected = [];
             window.cardsLoaded = true;
         }
@@ -954,14 +968,19 @@ async function updateBattle() {
     }
     
     // ===== ЗАЩИТНИК ВЫБИРАЕТ =====
-    if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || 
-                      (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected)) && !data.round_result) {
+    if (isMyTurn && !data.round_result && 
+        ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || 
+         (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
+        console.log("ЗАЩИТНИК выбирает карты");
+        
         let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
         let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
         
-        if (currentSquad.length === 0 || !window.cardsLoaded) {
-            let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
-            currentSquad = mySquad ? [...mySquad] : [];
+        let mySquad = isPlayer1 ? data.player1_squad : data.player2_squad;
+        console.log("mySquad:", mySquad);
+        
+        if (mySquad && mySquad.length >= 4) {
+            currentSquad = [...mySquad];
             currentSelected = [];
             window.cardsLoaded = true;
         }
@@ -981,6 +1000,9 @@ async function updateBattle() {
     }
     
     // ===== ОЖИДАНИЕ =====
+    console.log("ОЖИДАНИЕ. isAttacker:", isAttacker, "isMyTurn:", isMyTurn);
+    console.log("player1_selected:", data.player1_selected?.length, "player2_selected:", data.player2_selected?.length);
+    
     document.getElementById("readyBtn").style.display = "none";
     document.getElementById("waitingOpponentMsg").style.display = "block";
     document.getElementById("opponentCardsField").innerHTML = '';
