@@ -408,8 +408,14 @@ function getRandomSquadForBattle(deck) {
 }
 
 function computeDamage(attacker, defenderElem) {
-    let mult = elementBonus[attacker.element][defenderElem] || 1;
-    return Math.floor(attacker.damage * mult);
+    console.log(`computeDamage: карта ${attacker.name} (${attacker.element}) атакует элемент ${defenderElem}`);
+    console.log(`elementBonus[${attacker.element}][${defenderElem}] =`, elementBonus[attacker.element]?.[defenderElem]);
+    
+    let mult = elementBonus[attacker.element]?.[defenderElem] || 1;
+    let dmg = Math.floor(attacker.damage * mult);
+    
+    console.log(`${attacker.damage} × ${mult} = ${dmg}`);
+    return dmg;
 }
 
 function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defenderElem) {
