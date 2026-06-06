@@ -366,6 +366,7 @@ let lobbyInterval = null;
 let waitingInterval = null;
 let battleInterval = null;
 window.cardsLoaded = false;
+    window.roundShown = false; 
 
 function getRandomCardByElement(element) {
     let filtered = allCards.filter(c => c.element === element);
@@ -548,7 +549,6 @@ async function saveUser() {
         console.error("Исключение при сохранении:", e);
     }
 }
-    window.roundShown = false;
 
 async function loadUser(userId) {
     const { data, error } = await sb
