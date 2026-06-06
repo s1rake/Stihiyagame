@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Стихии Битва — PvP</title>
+    <title>Стихии Битва — PvP</title>а
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -707,6 +707,11 @@ window.joinBattle = async (battleId) => {
     }).eq("id", battleId).select().single();
     if (error) { alert("Ошибка: " + error.message); return; }
     currentBattleId = data.id;
+    
+    // ПОКАЗЫВАЕМ БОЕВОЙ ЭКРАН
+    document.getElementById("battlePanel").classList.add("active");
+    document.getElementById("lobbyPanel").classList.remove("active");
+    
     startBattle(data.id);
 };
 
@@ -770,6 +775,12 @@ function toggleSelectCard(idx) {
 
 async function startBattle(battleId) {
     currentBattleId = battleId;
+    
+    // ПОКАЗЫВАЕМ БОЕВОЙ ЭКРАН
+    document.getElementById("battlePanel").classList.add("active");
+    document.getElementById("waitingPanel").classList.remove("active");
+    document.getElementById("lobbyPanel").classList.remove("active");
+    
     if (battleInterval) clearInterval(battleInterval);
     battleInterval = setInterval(async () => {
         await updateBattle();
