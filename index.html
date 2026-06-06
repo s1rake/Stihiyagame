@@ -175,6 +175,7 @@
         .reward-label { font-size: 11px; color: #aaa; margin: 5px 0; }
         .reward-divider { border-top: 1px solid #333; margin: 8px 0; }
         .reward-prize { font-size: 16px; color: #44ff44; }
+        .pack.electric { border: 2px solid #ffff44; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -251,6 +252,7 @@
                 <div class="pack water" onclick="buyPack('water', 200)">💧 Пак Воды<br>200💰<br>3 карты воды</div>
                 <div class="pack earth" onclick="buyPack('earth', 200)">🌍 Пак Земли<br>200💰<br>3 карты земли</div>
                 <div class="pack wind" onclick="buyPack('wind', 200)">💨 Пак Ветра<br>200💰<br>3 карты ветра</div>
+                <div class="pack electric" onclick="buyPack('electric', 200)">⚡ Пак Электричества<br>200💰<br>3 карты электричества</div>
                 <div class="pack random" onclick="buyRandomPack()">🎲 Рандом пак<br>150💰<br>3 любые карты</div>
             </div>
         </div>
@@ -324,14 +326,35 @@ const allCards = [
     { name: "Инферно дракон", rarity: "mythic", damage: 55, element: "fire" },
     { name: "Кракен", rarity: "mythic", damage: 55, element: "water" },
     { name: "Гайя", rarity: "mythic", damage: 55, element: "earth" },
-    { name: "Аэрос", rarity: "mythic", damage: 55, element: "wind" }
+    { name: "Аэрос", rarity: "mythic", damage: 55, element: "wind" },
+    // Common (5)
+{ name: "Искра", rarity: "common", damage: 10, element: "electric" },
+{ name: "Электрошок", rarity: "common", damage: 11, element: "electric" },
+{ name: "Молния", rarity: "common", damage: 12, element: "electric" },
+{ name: "Разряд", rarity: "common", damage: 10, element: "electric" },
+{ name: "Электроток", rarity: "common", damage: 11, element: "electric" },
+// Rare (4)
+{ name: "Грозовой разряд", rarity: "rare", damage: 18, element: "electric" },
+{ name: "Электро-дух", rarity: "rare", damage: 18, element: "electric" },
+{ name: "Цепная молния", rarity: "rare", damage: 19, element: "electric" },
+{ name: "Электрошокер", rarity: "rare", damage: 19, element: "electric" },
+// Epic (3)
+{ name: "Властелин молний", rarity: "epic", damage: 26, element: "electric" },
+{ name: "Электро-элементаль", rarity: "epic", damage: 27, element: "electric" },
+{ name: "Грозовой фронт", rarity: "epic", damage: 27, element: "electric" },
+// Legendary (2)
+{ name: "Зевс", rarity: "legendary", damage: 38, element: "electric" },
+{ name: "Ра", rarity: "legendary", damage: 39, element: "electric" },
+// Mythic (1)
+{ name: "Тор", rarity: "mythic", damage: 55, element: "electric" },
 ];
 
 const elementBonus = {
-    fire: { water: 1.0, wind: 2.0, earth: 1.0, fire: 1.0 },
-    water: { earth: 1.0, fire: 2.0, wind: 1.0, water: 1.0 },
-    earth: { wind: 1.0, water: 2.0, fire: 1.0, earth: 1.0 },
-    wind: { fire: 1.0, earth: 2.0, water: 1.0, wind: 1.0 }
+    fire:     { water: 1.0, wind: 2.0, earth: 1.0, electric: 1.0, fire: 1.0 },
+    water:    { earth: 1.0, fire: 2.0, wind: 1.0, electric: 1.0, water: 1.0 },
+    earth:    { wind: 1.0, water: 2.0, fire: 1.0, electric: 1.0, earth: 1.0 },
+    wind:     { fire: 1.0, earth: 2.0, water: 1.0, electric: 1.0, wind: 1.0 },
+    electric: { water: 2.0, wind: 2.0, fire: 1.0, earth: 1.0, electric: 1.0 }
 };
 
 const leagues = [
@@ -1080,7 +1103,7 @@ async function startBotBattle() {
     currentSelected = [];
     let oppSquad = [];
     for (let i = 0; i < 6; i++) oppSquad.push(getRandomCard());
-    let oppElem = ["fire", "water", "earth", "wind"][Math.floor(Math.random() * 4)];
+    let oppElem = ["fire", "water", "earth", "wind", "electric"][Math.floor(Math.random() * 5)];
     let botBattle = { squad: currentSquad, oppSquad: oppSquad, oppElem: oppElem, round: 1, playerScore: 0, oppScore: 0 };
     
     document.getElementById("battlePanel").classList.add("active");
@@ -1163,7 +1186,7 @@ async function register() {
         element: c.element 
     }));
     
-    let element = ["fire", "water", "earth", "wind"][Math.floor(Math.random() * 4)];
+let element = ["fire", "water", "earth", "wind", "electric"][Math.floor(Math.random() * 5)];
     
     const { data, error } = await sb
         .from("game_users")
