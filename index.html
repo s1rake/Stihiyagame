@@ -447,13 +447,9 @@ function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defend
     console.log("Победитель раунда:", roundWinner);
     
     return { attackerTotal, defenderTotal, results, roundWinner };
-}
-    let roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
-    return { attackerTotal, defenderTotal, results, roundWinner };
-}
+} // ← ТОЛЬКО ОДНА закрывающая скобка!
 
-function getLossPenalty(leagueName) {
-    let league = leagues.find(l => l.name === leagueName);
+function getLossPenalty(leagueName) { // ← следующая функция    let league = leagues.find(l => l.name === leagueName);
     return league ? league.lossPenalty : 2;
 }
 
