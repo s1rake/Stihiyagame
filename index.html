@@ -424,9 +424,7 @@ function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defend
     let results = [];
     
     for (let i = 0; i < 4; i++) {
-        // Урон карты атакующего зависит от элемента КАРТЫ защитника
         let attackDmg = computeDamage(attackerCards[i], defenderCards[i].element);
-        // Урон карты защитника зависит от элемента КАРТЫ атакующего
         let defendDmg = computeDamage(defenderCards[i], attackerCards[i].element);
         
         attackerTotal += attackDmg;
@@ -442,11 +440,7 @@ function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defend
         });
     }
     
-    console.log(`ИТОГО: Атака ${attackerTotal} vs Защита ${defenderTotal}`);
-    
     let roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
-    console.log("Победитель раунда:", roundWinner);
-    
     return { attackerTotal, defenderTotal, results, roundWinner };
 }
 
