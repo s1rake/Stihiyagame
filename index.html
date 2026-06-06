@@ -442,24 +442,17 @@ function calculateRoundDamage(attackerCards, defenderCards, attackerElem, defend
         });
     }
     
-    let roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
-    return { attackerTotal, defenderTotal, results, roundWinner };
-}
-    
     console.log(`ИТОГО: Атака ${attackerTotal} vs Защита ${defenderTotal}`);
     
     let roundWinner = attackerTotal > defenderTotal ? "Атакующий" : defenderTotal > attackerTotal ? "Защитник" : "Ничья";
     console.log("Победитель раунда:", roundWinner);
     
     return { attackerTotal, defenderTotal, results, roundWinner };
-} // ← ТОЛЬКО ОДНА закрывающая скобка!
-
-function getLossPenalty(leagueName) { // ← следующая функция    let league = leagues.find(l => l.name === leagueName);
-    return league ? league.lossPenalty : 2;
 }
 
-function getLeagueByTrophies(trophies) {
-    return leagues.find(l => trophies >= l.min && trophies < l.max) || leagues[leagues.length - 1];
+function getLossPenalty(leagueName) {
+    let league = leagues.find(l => l.name === leagueName);
+    return league ? league.lossPenalty : 2;
 }
 
 function showOpponentCards(cards) {
