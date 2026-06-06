@@ -805,8 +805,47 @@ async function updateBattle() {
     
     let isAttacker = (round === 1 || round === 3) ? isPlayer1 : !isPlayer1;
     
-    // РАСЧЁТ РАУНДА
+    // ===== ПОКАЗ РЕЗУЛЬТАТА ДЛЯ ОБОИХ ИГРОКОВ =====
+    if (data.round_result && !window.roundShown) {
+        window.roundShown = true;
+        let res = data.round_result;
+        await showRoundResult(res.attackerName, res.attackerTotal, res.defenderName, res.defenderTotal, res.results, res.roundWinner);
+        window.roundShown = false;
+        
+        // Если это был последний раунд
+        if (data.round >= 3) {
+            let playerWon = (isPlayer1 && data.player1_score > data.player2_score) || 
+                           (!isPlayer1 && data.player2_score > data.player1_score);
+            let league = getLeagueByTrophies(currentUser.trophies);
+            let lossPenalty = getLossPenalty(league.name);
+            let trophies = playerWon ? 10 : -lossPenalty;
+            let coins = playerWon ? 50 : 0;
+            
+            currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
+            currentUser.currency = (currentUser.currency || 0) + coins;
+            
+            await saveUser();
+            updateUI();
+            await checkAndClaimRewards();
+            
+            alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
+            
+            await sb.from("battles").update({ status: "finished", round_result: null }).eq("id", currentBattleId);
+            document.getElementById("battlePanel").classList.remove("active");
+            document.getElementById("lobbyPanel").classList.add("active");
+            loadLobby();
+            clearInterval(battleInterval);
+            currentBattleId = null;
+            return;
+        }
+        
+        return;
+    }
+    
+    // ===== РАСЧЁТ РАУНДА =====
     if (data.player1_selected && data.player2_selected && data.player1_ready && data.player2_ready) {
+        console.log("Расчёт раунда");
+        
         let isPlayer1Attacker = (round === 1 || round === 3);
         let attackerCards = isPlayer1Attacker ? data.player1_selected : data.player2_selected;
         let defenderCards = isPlayer1Attacker ? data.player2_selected : data.player1_selected;
@@ -824,49 +863,33 @@ async function updateBattle() {
             if (!isPlayer1Attacker) newScore1++; else newScore2++;
         }
         
-        // Сохраняем счёт
+        // Сохраняем результат для показа обоим игрокам
         await sb.from("battles").update({
             player1_score: newScore1,
             player2_score: newScore2,
             player1_ready: false,
-            player2_ready: false
+            player2_ready: false,
+            round_result: {
+                attackerName: attackerName,
+                attackerTotal: result.attackerTotal,
+                defenderName: defenderName,
+                defenderTotal: result.defenderTotal,
+                results: result.results,
+                roundWinner: result.roundWinner
+            }
         }).eq("id", currentBattleId);
-        
-        // Показываем результат
-        await showRoundResult(attackerName, result.attackerTotal, defenderName, result.defenderTotal, result.results, result.roundWinner);
         
         // Сбрасываем карты
         currentSquad = [];
         currentSelected = [];
         window.cardsLoaded = false;
         
-        // Конец игры?
+        // Если это последний раунд - не генерируем новые squad
         if (round >= 3) {
-            let playerWon = (isPlayer1 && newScore1 > newScore2) || (!isPlayer1 && newScore2 > newScore1);
-            let league = getLeagueByTrophies(currentUser.trophies);
-            let lossPenalty = getLossPenalty(league.name);
-            let trophies = playerWon ? 10 : -lossPenalty;
-            let coins = playerWon ? 50 : 0;
-            
-            currentUser.trophies = Math.max(0, (currentUser.trophies || 0) + trophies);
-            currentUser.currency = (currentUser.currency || 0) + coins;
-            
-            await saveUser();
-            updateUI();
-            await checkAndClaimRewards();
-            
-            alert(`${playerWon ? "ПОБЕДА!" : "ПОРАЖЕНИЕ"}\n🏆 Трофеи: ${trophies > 0 ? "+" : ""}${trophies}\n💰 Монеты: +${coins}`);
-            
-            await sb.from("battles").update({ status: "finished" }).eq("id", currentBattleId);
-            document.getElementById("battlePanel").classList.remove("active");
-            document.getElementById("lobbyPanel").classList.add("active");
-            loadLobby();
-            clearInterval(battleInterval);
-            currentBattleId = null;
             return;
         }
         
-        // Новый раунд
+        // Генерируем новые squad для следующего раунда
         let player1Deck = (await sb.from("game_users").select("deck").eq("id", data.player1_id).single()).data?.deck || [];
         let player2Deck = (await sb.from("game_users").select("deck").eq("id", data.player2_id).single()).data?.deck || [];
         let newSquad1 = getRandomSquadForBattle(player1Deck);
@@ -882,12 +905,11 @@ async function updateBattle() {
             player2_selected: null
         }).eq("id", currentBattleId);
         
-        await new Promise(resolve => setTimeout(resolve, 1500));
         return;
     }
     
-    // АТАКУЮЩИЙ ВЫБИРАЕТ
-    if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected) {
+    // ===== АТАКУЮЩИЙ ВЫБИРАЕТ =====
+    if (isAttacker && isMyTurn && !data.player1_selected && !data.player2_selected && !data.round_result) {
         if (currentSquad.length === 0 || !window.cardsLoaded) {
             let squad = isPlayer1 ? data.player1_squad : data.player2_squad;
             currentSquad = squad ? [...squad] : [];
@@ -906,9 +928,9 @@ async function updateBattle() {
         return;
     }
     
-    // ЗАЩИТНИК ВЫБИРАЕТ
+    // ===== ЗАЩИТНИК ВЫБИРАЕТ =====
     if (isMyTurn && ((data.player1_selected && data.player1_selected.length === 4 && !data.player2_selected) || 
-                      (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected))) {
+                      (data.player2_selected && data.player2_selected.length === 4 && !data.player1_selected)) && !data.round_result) {
         let isAttackerPlayer1 = (data.player1_selected && data.player1_selected.length === 4);
         let attackerCards = isAttackerPlayer1 ? data.player1_selected : data.player2_selected;
         
@@ -933,11 +955,18 @@ async function updateBattle() {
         return;
     }
     
-    // ОЖИДАНИЕ
+    // ===== ОЖИДАНИЕ =====
     document.getElementById("readyBtn").style.display = "none";
     document.getElementById("waitingOpponentMsg").style.display = "block";
     document.getElementById("opponentCardsField").innerHTML = '';
-    document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание соперника...`;
+    
+    if (data.round_result) {
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Загрузка результатов...`;
+    } else if (data.player1_selected || data.player2_selected) {
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание защиты соперника...`;
+    } else {
+        document.getElementById("battleLog").innerHTML = `Раунд ${round}. Ожидание атаки соперника...`;
+    }
     
     document.getElementById("battlePanel").classList.add("active");
     document.getElementById("lobbyPanel").classList.remove("active");
@@ -981,6 +1010,7 @@ async function submitReady() {
     document.getElementById("readyBtn").disabled = true;
     document.getElementById("readyBtn").innerHTML = "⏳ Ожидание...";
     window.cardsLoaded = false;
+    window.roundShown = false;
 }
 
 async function startBotBattle() {
